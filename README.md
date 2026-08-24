@@ -2,31 +2,42 @@
 
 Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js 14 + Tailwind CSS.
 
-![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8)
+![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![lang](https://img.shields.io/badge/bahasa-ID-orange)
 
 ## Fitur
 
-- **Multi-cluster dinamis** — tambah/hapus/edit koneksi ke banyak server Proxmox dari UI
-- **Dua metode autentikasi**:
-  - `User & Password` (tiket PVE, auto-refresh)
-  - `API Token` (`PVEAPIToken=user@realm!tokenid=secret`)
-- **Overview** — status node, jumlah guest, agregasi CPU/RAM/disk cluster
-- **Virtual Machines** — daftar VM & CT lintas node, filter (tipe/status/node/pencarian), aksi Start / Shutdown / Reboot / Force Stop dengan **pemantauan task live (UPID)**, link konsol noVNC
-- **Buat Guest** — CT dari template LXC atau VM via **ISO** (termasuk unduh ISO dari URL server-side) / clone template + cloud-init
-- **Grafik Monitoring RRD** — riwayat CPU/Memori/Network/Disk IO per node & guest (hour–year)
-- **Keamanan**:
-  - Login admin panel (session cookie HMAC httpOnly)
-  - Kredensial cluster dienkripsi AES-256-GCM sebelum disimpan (`data/clusters.json`)
-  - Semua trafik ke Proxmox melewati API route internal — kredensial tidak pernah sampai ke browser
-- TLS skip-verify opsional untuk host self-signed
+### Manajemen Cluster
+- **Multi-cluster dinamis** — tambah/hapus/edit koneksi dari UI, dua metode auth: `User & Password` atau `API Token` (`PVEAPIToken=user@realm!tokenid=secret`)
+- Kredensial disimpan **terenkripsi AES-256-GCM**; semua trafik PVE melewati proxy internal (kredensial tidak pernah menyentuh browser)
+
+### Monitoring & Operasional
+- **Overview** — status node, agregasi CPU/RAM/disk, Task Center dengan pemantauan task UPID live
+- **Virtual Machines** — daftar VM/CT lintas node + filter, aksi Start/Shutdown/Reboot/Force Stop per guest, **Bulk Action** (pilih banyak → start/shutdown massal), link konsol noVNC
+- **Buat Guest** — CT dari template LXC, atau VM via **ISO** (termasuk unduh ISO dari URL secara server-side) / clone template + cloud-init opsional
+- **Grafik Monitoring RRD** — riwayat CPU/Memori/Network/Disk IO per node & guest (rentang jam–tahun); guest mati ditampilkan panel pemberitahuan
+
+### Pelaporan
+- **Laporan Bulanan** — cakupan **per cluster** atau **gabungan seluruh cluster**
+  - Format **HTML mandiri dengan grafik SVG** (siap dicetak/simpan PDF) atau TXT polos
+  - Bahasa eksekutif untuk pimpinan: ringkasan kondisi, kapasitas berkategori Aman/Waspada/Kritis, catatan kejadian, rekomendasi tindak lanjut otomatis
+
+### Administrasi
+- **Audit Log** — login (sukses/gagal + IP), CRUD cluster, dan setiap aksi mutasi ke PVE tercatat otomatis
+- **Backup konfigurasi panel ke FTP** — bundle `clusters.json` + kunci enkripsi + settings, dengan tes koneksi dan opsi harian otomatis (beta)
+
+### Keamanan
+- Rate-limit login (lockout 5 menit setelah 5 gagal) + verifikasi constant-time
+- Cookie session `HttpOnly` + `Secure` + HMAC-SHA256 (7 hari)
+- Contoh nginx menyertakan redirect HTTP→HTTPS & HSTS
 
 ## Arsitektur Singkat
 
 ```
 Browser ──> Next.js (UI + API Routes) ──HTTPS──> Proxmox VE API (port 8006)
                  │
-                 └─ data/clusters.json  (kredensial terenkripsi AES-256-GCM)
-                 └─ data/.secret        (key enkripsi, dibuat otomatis)
+                 ├─ data/clusters.json   (kredensial terenkripsi)
+                 ├─ data/.secret         (kunci enkripsi, dibuat otomatis)
+                 └─ data/audit.log       (jejak audit JSONL)
 ```
 
 ## Menjalankan
@@ -43,8 +54,6 @@ Produksi:
 npm run build && npm start         # default port 3000
 ```
 
-### Variabel Environment
-
 | Var | Default | Keterangan |
 |---|---|---|
 | `ADMIN_USER` | `admin` | username login panel |
@@ -54,8 +63,7 @@ npm run build && npm start         # default port 3000
 ## Menambah Cluster
 
 1. Login → menu **Clusters** → *Tambah Cluster*
-2. Pilih metode auth (password atau API token), isi host/port/user
-3. *Tes koneksi* untuk validasi
+2. Pilih metode auth, isi host/port/user, lalu *Tes koneksi*
 
 Rekomendasi user khusus (alih-alih root):
 
@@ -70,23 +78,36 @@ Atau API token:
 pveum user token add proxcenter@pve panel -privsep 0
 ```
 
+## Deployment (contoh: LXC Debian 12)
+
+```bash
+apt install -y nodejs npm nginx
+cd /opt/proxcenter && npm install && npm run build
+# systemd unit + nginx reverse proxy:
+#   server 80  -> return 301 https://$host$request_uri
+#   server 443 -> ssl + proxy_pass http://127.0.0.1:3000 + HSTS
+```
+
+Contoh unit systemd tersedia pada catatan deploy — jalankan dengan `NODE_ENV=production`.
+
 ## Struktur
 
 ```
 src/
 ├── app/
-│   ├── api/            # auth, CRUD clusters, proxy PVE
-│   ├── dashboard/      # overview, vms, clusters
+│   ├── api/            # auth, clusters, proxy PVE (GET/POST/PUT/DELETE),
+│   │                   # meta, reports, settings, audit
+│   ├── dashboard/      # overview, vms, create, graphs, clusters, settings
 │   └── login/
-├── components/         # tabel VM, form cluster, nav, dsb.
-├── lib/                # pve client, session, store terenkripsi
+├── components/         # tabel VM, form cluster/guest, charts, panels
+├── lib/                # pve client, session, store terenkripsi,
+│                       # report generator, ftp-backup, audit
 └── types.ts
 ```
 
-## Catatan Deployment (contoh: LXC Debian 12)
+## Roadmap
 
-```bash
-apt install -y nodejs npm nginx
-cd /opt/proxcenter && npm install && npm run build
-# systemd unit + nginx reverse proxy 80/443 -> 3000
-```
+- [ ] Backup VM/CT (vzdump) dari panel + kelola file dump
+- [ ] Notifikasi WhatsApp saat guest down
+- [ ] UI tabel audit log di menu Pengaturan
+- [ ] Upload ISO dari komputer lokal
