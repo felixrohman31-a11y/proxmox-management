@@ -275,10 +275,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
   }
 
   function consoleUrl(g: GuestRow): string {
-    const kind = g.type === 'qemu' ? 'kvm' : 'lxc';
-    return `https://${host}:${port}/?console=${kind}&novnc=1&vmid=${g.vmid}&vmname=${encodeURIComponent(
-      g.name
-    )}&node=${encodeURIComponent(g.node)}`;
+    return `/dashboard/console?c=${clusterId}&node=${encodeURIComponent(g.node)}&type=${g.type}&vmid=${g.vmid}&name=${encodeURIComponent(g.name)}`;
   }
 
   const runningCount = guests.filter((g) => !g.template && g.status === 'running').length;
@@ -480,7 +477,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                         href={consoleUrl(g)}
                         target="_blank"
                         rel="noreferrer"
-                        title="Buka konsol di web UI Proxmox"
+                        title="Buka konsol noVNC (via web Proxmox)"
                         className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
                       >
                         <ExternalIcon />

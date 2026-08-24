@@ -23,14 +23,16 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   } catch {
     return NextResponse.json({ error: 'Form tidak valid.' }, { status: 400 });
   }
-  const file = form.get('file');
-  if (!(file instanceof File)) {
+  const file = form.get('file') as
+    | { name?: string; size?: number; arrayBuffer?: () => Promise<ArrayBuffer> }
+    | null;
+  if (!file || typeof file.arrayBuffer !== 'function' || typeof file.name !== 'string' || !file.name) {
     return NextResponse.json({ error: 'File tidak ditemukan.' }, { status: 400 });
   }
   if (!/\.(iso|img)$/i.test(file.name)) {
     return NextResponse.json({ error: 'Hanya file .iso atau .img yang diizinkan.' }, { status: 400 });
   }
-  if (file.size > MAX_UPLOAD) {
+  if (file.size && file.size > MAX_UPLOAD) {
     return NextResponse.json(
       {
         error: `Ukuran maksimal unggah lewat panel adalah 512 MB (file Anda ${(file.size / 1024 ** 2).toFixed(0)} MB). Untuk ISO besar gunakan unduh dari URL atau SCP ke host.`
