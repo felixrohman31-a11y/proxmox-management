@@ -11,7 +11,9 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
   - `User & Password` (tiket PVE, auto-refresh)
   - `API Token` (`PVEAPIToken=user@realm!tokenid=secret`)
 - **Overview** — status node, jumlah guest, agregasi CPU/RAM/disk cluster
-- **Virtual Machines** — daftar VM & CT lintas node, filter (tipe/status/node/pencarian), aksi Start / Shutdown / Reboot / Force Stop, link konsol noVNC
+- **Virtual Machines** — daftar VM & CT lintas node, filter (tipe/status/node/pencarian), aksi Start / Shutdown / Reboot / Force Stop dengan **pemantauan task live (UPID)**, link konsol noVNC
+- **Buat Guest** — CT dari template LXC atau VM via **ISO** (termasuk unduh ISO dari URL server-side) / clone template + cloud-init
+- **Grafik Monitoring RRD** — riwayat CPU/Memori/Network/Disk IO per node & guest (hour–year)
 - **Keamanan**:
   - Login admin panel (session cookie HMAC httpOnly)
   - Kredensial cluster dienkripsi AES-256-GCM sebelum disimpan (`data/clusters.json`)

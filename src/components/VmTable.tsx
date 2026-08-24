@@ -6,6 +6,7 @@ import StatusBadge from './StatusBadge';
 import { Meter } from './StatCard';
 import { Th, Td } from './TableBits';
 import {
+  ChartIcon,
   ExternalIcon,
   PlayIcon,
   PowerIcon,
@@ -348,6 +349,15 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                           </ActBtn>
                         </>
                       )}
+                      <a
+                        href={`/dashboard/graphs?c=${clusterId}&t=guest&g=${encodeURIComponent(
+                          `${g.type}|${g.vmid}|${g.node}`
+                        )}&tf=day`}
+                        title="Grafik monitoring"
+                        className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                      >
+                        <ChartIcon />
+                      </a>
                       <a
                         href={consoleUrl(g)}
                         target="_blank"
