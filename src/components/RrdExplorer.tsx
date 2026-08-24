@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TrendChart } from './TrendChart';
-import { RefreshIcon } from './icons';
+import { RefreshIcon, PowerIcon } from './icons';
 import { fmtBytes } from '@/lib/format';
 
 type Timeframe = 'hour' | 'day' | 'week' | 'month' | 'year';
@@ -13,6 +13,7 @@ interface GuestLite {
   type: 'qemu' | 'lxc';
   name: string;
   node: string;
+  status?: string;
 }
 
 interface Props {
@@ -66,6 +67,11 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(nodeSel)}/rrddata`;
     } else {
       if (!guest) return;
+      if (guest.status && guest.status !== 'running') {
+        setRows(null);
+        setErr(null);
+        return;
+      }
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(guest.node)}/${guest.type}/${guest.vmid}/rrddata`;
     }
     setLoading(true);
@@ -226,7 +232,24 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
         {updated ? ` · diperbarui ${updated.toLocaleTimeString('id-ID', { hour12: false })}` : ''}
       </p>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {targetType === 'guest' && guest && guest.status && guest.status !== 'running' ? (
+        <div className="card flex flex-col items-center justify-center rounded-xl border-dashed border-amber-700/50 bg-amber-950/20 px-6 py-14 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-amber-500/10 text-amber-400">
+            <PowerIcon className="h-7 w-7" />
+          </span>
+          <h3 className="mt-4 text-lg font-medium text-zinc-100">Guest sedang mati (offline)</h3>
+          <p className="mt-1.5 max-w-md text-sm leading-relaxed text-zinc-400">
+            {guest.type === 'qemu' ? 'VM' : 'CT'} <b className="text-zinc-200">{guest.name}</b> ({guest.vmid}) pada
+            node <b className="text-zinc-200">{guest.node}</b> berstatus{' '}
+            <span className="font-medium capitalize text-amber-300">{guest.status}</span>. Grafik tidak ditampilkan
+            karena Proxmox tidak merekam metrik RRD untuk guest yang tidak berjalan.
+          </p>
+          <a href={`/dashboard/vms?c=${clusterId}`} className="btn-primary mt-6">
+            Buka Virtual Machines untuk menyalakan
+          </a>
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
         <Card title="CPU (%)" series={cpuSeries} yFmt={(v) => `${Math.round(v)}%`} tip={(v) => `${v.toFixed(1)}%`} />
         <Card
           title="Memori"
@@ -269,7 +292,8 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
             />
           </>
         )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,7 +33,7 @@ export default async function GraphsPage({
     try {
       const data = await fetchResources(cluster.id);
       nodes = data.nodes.map((n) => ({ node: n.node, status: n.status }));
-      guests = data.guests.map((g) => ({ vmid: g.vmid, type: g.type, name: g.name, node: g.node }));
+      guests = data.guests.map((g) => ({ vmid: g.vmid, type: g.type, name: g.name, node: g.node, status: g.status }));
     } catch (e) {
       error = e instanceof PveError ? e.message : (e as Error).message;
     }
