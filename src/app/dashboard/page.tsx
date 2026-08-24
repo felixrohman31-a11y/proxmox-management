@@ -54,7 +54,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
         title="Overview"
         subtitle={cluster ? `Ringkasan resource cluster "${cluster.name}"` : 'Belum ada cluster terhubung'}
       >
-        <ReportDownload clusterId={cluster?.id ?? ''} />
+        <ReportDownload clusterId={cluster?.id ?? ''} clusterName={cluster?.name} />
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard" />
       </PageHeader>
 
