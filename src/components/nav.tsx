@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CubeIcon, GridIcon, LayersIcon, LogoutIcon } from './icons';
+import { CubeIcon, GridIcon, LayersIcon, LogoutIcon, PlusIcon } from './icons';
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: GridIcon },
   { href: '/dashboard/vms', label: 'Virtual Machines', icon: CubeIcon },
+  { href: '/dashboard/create', label: 'Buat Guest', icon: PlusIcon },
   { href: '/dashboard/clusters', label: 'Clusters', icon: LayersIcon }
 ];
 

@@ -54,3 +54,26 @@ export interface ActiveTask {
   vmid: number;
   action: string;
 }
+
+export interface CreateBridge {
+  iface: string;
+}
+
+export interface LxcTemplateOpt {
+  volid: string;
+  name: string;
+}
+
+export interface VmTemplateOpt {
+  vmid: number;
+  name: string;
+}
+
+export interface CreateMeta {
+  nextId: string;
+  bridges: CreateBridge[];
+  ctStorages: string[];
+  vmStorages: string[];
+  lxcTemplates: LxcTemplateOpt[];
+  vmTemplates: VmTemplateOpt[];
+}

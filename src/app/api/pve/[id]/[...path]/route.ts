@@ -47,3 +47,23 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     return toError(e);
   }
 }
+
+export async function PUT(req: NextRequest, ctx: Ctx) {
+  if (!getSessionFromCookies()) return unauthorized();
+  const client = getPveClient(ctx.params.id);
+  if (!client) return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
+
+  const target = '/' + ctx.params.path.join('/');
+  let body: unknown = {};
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+  try {
+    const data = await client.request('PUT', target, { body });
+    return NextResponse.json({ data });
+  } catch (e) {
+    return toError(e);
+  }
+}
