@@ -101,15 +101,16 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
   }, [load]);
 
   const cpuSeries = [{ key: 'cpu', label: 'CPU', color: '#fb923c', scale: 100 }];
+  const GIB = 1 / 1024 ** 3;
   const memSeries =
     targetType === 'node'
       ? [
-          { key: 'memG', label: 'Terpakai', color: '#38bdf8' },
-          { key: 'memTotG', label: 'Total', color: '#52525b' }
+          { key: 'memused', label: 'Terpakai', color: '#38bdf8', scale: GIB },
+          { key: 'memtotal', label: 'Total', color: '#52525b', scale: GIB }
         ]
       : [
-          { key: 'memG', label: 'Terpakai', color: '#38bdf8' },
-          { key: 'memMaxG', label: 'Alokasi', color: '#52525b' }
+          { key: 'mem', label: 'Terpakai', color: '#38bdf8', scale: GIB },
+          { key: 'maxmem', label: 'Alokasi', color: '#52525b', scale: GIB }
         ];
   const netSeries = [
     { key: 'netin', label: 'In', color: '#34d399' },
@@ -239,12 +240,35 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
           yFmt={(v) => fmtBytes(v)}
           tip={(v, name) => `${name}: ${fmtBytes(v)}/s`}
         />
-        <Card
-          title="Disk IO"
-          series={diskSeries}
-          yFmt={(v) => fmtBytes(v)}
-          tip={(v, name) => `${name}: ${fmtBytes(v)}/s`}
-        />
+        {targetType === 'guest' ? (
+          <Card
+            title="Disk IO"
+            series={diskSeries}
+            yFmt={(v) => fmtBytes(v)}
+            tip={(v, name) => `${name}: ${fmtBytes(v)}/s`}
+          />
+        ) : (
+          <>
+            <Card
+              title="Disk Root"
+              series={[
+                { key: 'rootused', label: 'Terpakai', color: '#fbbf24', scale: GIB },
+                { key: 'roottotal', label: 'Total', color: '#52525b', scale: GIB }
+              ]}
+              yFmt={(v) => `${v.toFixed(0)} GiB`}
+              tip={(v) => `${v.toFixed(2)} GiB`}
+            />
+            <Card
+              title="Swap"
+              series={[
+                { key: 'swapused', label: 'Terpakai', color: '#f472b6', scale: GIB },
+                { key: 'swaptotal', label: 'Total', color: '#52525b', scale: GIB }
+              ]}
+              yFmt={(v) => `${v.toFixed(0)} GiB`}
+              tip={(v) => `${v.toFixed(2)} GiB`}
+            />
+          </>
+        )}
       </div>
     </div>
   );
