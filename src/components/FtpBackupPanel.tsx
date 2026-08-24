@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
+import type { PublicCluster } from '@/types';
 
 interface FtpSettingsView {
   host: string;
@@ -20,7 +21,7 @@ interface BackupState {
   lastError?: string;
 }
 
-export default function FtpBackupPanel() {
+export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[] }) {
   const [loaded, setLoaded] = useState(false);
   const [host, setHost] = useState('');
   const [port, setPort] = useState('21');
@@ -106,6 +107,21 @@ export default function FtpBackupPanel() {
           Mengirim salinan konfigurasi panel (daftar cluster &amp; kredensial terenkripsi + kunci) ke server FTP.
           Simpan arsip di lokasi yang aman — berisi kunci dekripsi.
         </p>
+
+        {clusters.length > 0 && (
+          <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
+            <p className="text-xs font-medium text-zinc-400">
+              Cluster tercakup dalam backup ({clusters.length}):
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {clusters.map((c) => (
+                <span key={c.id} className="rounded bg-zinc-800 px-2 py-0.5 text-[11px] text-zinc-300">
+                  {c.name} <span className="text-zinc-500">· {c.host}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>

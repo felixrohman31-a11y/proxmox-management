@@ -84,3 +84,26 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     return toError(e);
   }
 }
+
+export async function DELETE(req: NextRequest, ctx: Ctx) {
+  const session = getSessionFromCookies();
+  if (!session) return unauthorized();
+  const client = getPveClient(ctx.params.id);
+  if (!client) return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
+
+  const target = '/' + ctx.params.path.join('/');
+  const query = Object.fromEntries(req.nextUrl.searchParams.entries());
+  try {
+    const data = await client.request('DELETE', target, { query });
+    await appendAudit({
+      ts: new Date().toISOString(),
+      user: session.u,
+      action: 'pve.delete',
+      target,
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    });
+    return NextResponse.json({ data });
+  } catch (e) {
+    return toError(e);
+  }
+}

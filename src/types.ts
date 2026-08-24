@@ -83,4 +83,5 @@ export interface CreateMeta {
   vmTemplates: VmTemplateOpt[];
   isoStorages: string[];
   isos: IsoOpt[];
+  backupStorages: string[];
 }

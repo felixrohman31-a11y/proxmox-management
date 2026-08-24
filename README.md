@@ -107,7 +107,10 @@ src/
 
 ## Roadmap
 
-- [ ] Backup VM/CT (vzdump) dari panel + kelola file dump
-- [ ] Notifikasi WhatsApp saat guest down
-- [ ] UI tabel audit log di menu Pengaturan
-- [ ] Upload ISO dari komputer lokal
+- [x] Backup VM/CT (vzdump) dari panel + kelola file dump
+- [x] Notifikasi WhatsApp saat guest down (CallMeBot)
+- [x] UI tabel audit log di menu Pengaturan
+- [x] Upload ISO dari komputer lokal (≤512 MB)
+- [ ] Multi-user panel + RBAC
+- [ ] Restore VM/CT langsung dari file dump
+- [ ] Grafik monitoring per guest dengan jendela kustom

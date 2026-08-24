@@ -57,6 +57,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
 
   const [dlStorage, setDlStorage] = useState('');
   const [dlUrl, setDlUrl] = useState('');
+  const [isoFile, setIsoFile] = useState<File | null>(null);
 
   const [phase, setPhase] = useState<Phase>(null);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
@@ -172,6 +173,37 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
       await awaitTask(node, upid, `Unduh ${filename}`);
       setDoneMsg(`ISO ${filename} berhasil diunduh ke ${dlStorage}.`);
       setDlUrl('');
+      await loadMeta();
+    } catch (e) {
+      setFormError((e as Error).message);
+    } finally {
+      setPhase(null);
+    }
+  }
+
+  async function uploadIso() {
+    setFormError(null);
+    if (!isoFile) return;
+    if (!/\.(iso|img)$/i.test(isoFile.name)) {
+      setFormError('Hanya file .iso atau .img yang diizinkan.');
+      return;
+    }
+    if (!dlStorage) {
+      setFormError('Pilih storage tujuan terlebih dahulu.');
+      return;
+    }
+    try {
+      setPhase({ label: `Mengunggah ${isoFile.name} (${(isoFile.size / 1024 ** 2).toFixed(0)} MB)…` });
+      const fd = new FormData();
+      fd.append('file', isoFile);
+      const r = await fetch(
+        `/api/upload/${clusterId}/${encodeURIComponent(node)}/${encodeURIComponent(dlStorage)}`,
+        { method: 'POST', body: fd }
+      );
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(j?.error ?? `Unggah gagal (HTTP ${r.status}).`);
+      setDoneMsg(`ISO ${isoFile.name} berhasil diunggah ke ${dlStorage}.`);
+      setIsoFile(null);
       await loadMeta();
     } catch (e) {
       setFormError((e as Error).message);
@@ -534,6 +566,23 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                           simpan sebagai: <code>{fileNameFromUrl(dlUrl) || '?'}</code>
                         </span>
                       )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 border-t border-zinc-800 pt-3">
+                      <input
+                        type="file"
+                        accept=".iso,.img"
+                        onChange={(e) => setIsoFile(e.target.files?.[0] ?? null)}
+                        className="text-xs text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-xs file:text-zinc-200 hover:file:bg-zinc-700"
+                      />
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        onClick={uploadIso}
+                        disabled={Boolean(phase) || !isoFile || !dlStorage}
+                      >
+                        Unggah ke {dlStorage || 'storage'}
+                      </button>
+                      <span className="text-xs text-zinc-600">maks ±512 MB lewat panel</span>
                     </div>
                   </div>
                 </fieldset>

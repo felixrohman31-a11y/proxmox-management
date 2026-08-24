@@ -28,6 +28,9 @@ export async function getCreateMeta(clusterId: string, node: string): Promise<Cr
   const isoStorages = storages
     .filter((s) => s.content?.split(',').includes('iso'))
     .map((s) => s.storage ?? '');
+  const backupStorages = storages
+    .filter((s) => s.content?.split(',').includes('backup'))
+    .map((s) => s.storage ?? '');
 
   const tmplResults = await Promise.all(
     tmplStorages.map((st) =>
@@ -83,6 +86,7 @@ export async function getCreateMeta(clusterId: string, node: string): Promise<Cr
     lxcTemplates,
     vmTemplates,
     isoStorages: isoStorages.filter(Boolean),
-    isos
+    isos,
+    backupStorages: backupStorages.filter(Boolean)
   };
 }

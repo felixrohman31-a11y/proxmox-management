@@ -17,6 +17,8 @@ interface RequestOptions {
   headers?: Record<string, string>;
   json?: unknown;
   form?: Record<string, string>;
+  rawBody?: Buffer;
+  rawContentType?: string;
   insecure?: boolean;
   timeoutMs?: number;
 }
@@ -29,13 +31,16 @@ interface HttpResult {
 function httpRequest(host: string, port: number, opts: RequestOptions): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
     const headers: Record<string, string> = { Accept: 'application/json', ...(opts.headers ?? {}) };
-    let body: string | undefined;
+    let body: string | Buffer | undefined;
     if (opts.form) {
       body = new URLSearchParams(opts.form).toString();
       headers['Content-Type'] = 'application/x-www-form-urlencoded';
     } else if (opts.json !== undefined) {
       body = JSON.stringify(opts.json);
       headers['Content-Type'] = 'application/json';
+    } else if (opts.rawBody) {
+      body = opts.rawBody;
+      headers['Content-Type'] = opts.rawContentType ?? 'application/octet-stream';
     }
     if (body) headers['Content-Length'] = String(Buffer.byteLength(body));
 
@@ -226,6 +231,56 @@ export class PveClient {
 
   post<T = unknown>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('POST', path, { body: body ?? {} });
+  }
+
+  async uploadFile(
+    node: string,
+    storageName: string,
+    filename: string,
+    contentType: 'iso',
+    fileBuffer: Buffer
+  ): Promise<unknown> {
+    const t = await this.ticket();
+    const boundary = '----proxcenter' + Date.now().toString(36);
+    const head = Buffer.from(
+      [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="content"',
+        '',
+        contentType,
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="filename"',
+        '',
+        filename,
+        `--${boundary}`,
+        `Content-Disposition: form-data; name="file"; filename="${filename}"`,
+        'Content-Type: application/octet-stream',
+        '',
+        ''
+      ].join('\r\n'),
+      'utf8'
+    );
+    const tail = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+    const body = Buffer.concat([head, fileBuffer, tail]);
+
+    const res = await httpRequest(this.conn.host, this.conn.port, {
+      method: 'POST',
+      path: `/api2/json/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storageName)}/upload`,
+      headers: {
+        ...PveClient.buildHeaders(t, true),
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': String(body.length)
+      },
+      rawBody: body,
+      insecure: this.conn.insecure,
+      timeoutMs: 600000
+    });
+
+    if (res.status >= 200 && res.status < 300) {
+      const d = res.data as { data?: unknown } | null;
+      return d?.data;
+    }
+    throw new PveError(extractErrorMessage(res.data, `Upload gagal (HTTP ${res.status}).`), res.status || 502);
   }
 }
 
