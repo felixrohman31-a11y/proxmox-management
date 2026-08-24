@@ -64,6 +64,11 @@ export interface LxcTemplateOpt {
   name: string;
 }
 
+export interface IsoOpt {
+  volid: string;
+  name: string;
+}
+
 export interface VmTemplateOpt {
   vmid: number;
   name: string;
@@ -76,4 +81,6 @@ export interface CreateMeta {
   vmStorages: string[];
   lxcTemplates: LxcTemplateOpt[];
   vmTemplates: VmTemplateOpt[];
+  isoStorages: string[];
+  isos: IsoOpt[];
 }

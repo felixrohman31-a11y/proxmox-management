@@ -25,6 +25,9 @@ export async function getCreateMeta(clusterId: string, node: string): Promise<Cr
   const tmplStorages = storages
     .filter((s) => s.content?.split(',').includes('vztmpl'))
     .map((s) => s.storage ?? '');
+  const isoStorages = storages
+    .filter((s) => s.content?.split(',').includes('iso'))
+    .map((s) => s.storage ?? '');
 
   const tmplResults = await Promise.all(
     tmplStorages.map((st) =>
@@ -45,6 +48,23 @@ export async function getCreateMeta(clusterId: string, node: string): Promise<Cr
       return { volid, name: m ? m[1] : volid };
     });
 
+  const isoResults = await Promise.all(
+    isoStorages.map((st) =>
+      client
+        .get<Array<{ volid?: string }>>(`/nodes/${node}/storage/${st}/content`, { content: 'iso' })
+        .catch(() => [])
+    )
+  );
+
+  const isos = isoResults
+    .flat()
+    .filter((t) => t.volid)
+    .map((t) => {
+      const volid = t.volid!;
+      const m = volid.match(/iso\/([^/]+)$/);
+      return { volid, name: m ? decodeURIComponent(m[1]) : volid };
+    });
+
   const resources = await client
     .get<Array<{ type?: string; template?: number | boolean; vmid?: number; name?: string }>>(
       '/cluster/resources'
@@ -61,6 +81,8 @@ export async function getCreateMeta(clusterId: string, node: string): Promise<Cr
     ctStorages: ctStorages.filter(Boolean),
     vmStorages: vmStorages.filter(Boolean),
     lxcTemplates,
-    vmTemplates
+    vmTemplates,
+    isoStorages: isoStorages.filter(Boolean),
+    isos
   };
 }
