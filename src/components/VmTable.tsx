@@ -15,10 +15,17 @@ import {
   StopIcon
 } from './icons';
 import type { ReactNode } from 'react';
-import type { GuestRow } from '@/types';
+import type { ActiveTask, GuestRow } from '@/types';
 import { fmtBytes, fmtUptime, pct } from '@/lib/format';
 
 type ActionKind = 'start' | 'shutdown' | 'reboot' | 'stop';
+
+const ACTION_LABEL: Record<ActionKind, string> = {
+  start: 'Start',
+  shutdown: 'Shutdown',
+  reboot: 'Reboot',
+  stop: 'Force Stop'
+};
 
 interface Props {
   clusterId: string;
@@ -80,6 +87,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
   const [statusF, setStatusF] = useState('');
   const [nodeF, setNodeF] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<ActiveTask[]>([]);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   useEffect(() => {
@@ -87,6 +95,45 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
     const t = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(t);
   }, [toast]);
+
+  useEffect(() => {
+    if (tasks.length === 0) return;
+    let cancelled = false;
+    const iv = setInterval(async () => {
+      for (const t of [...tasks]) {
+        try {
+          const r = await fetch(
+            `/api/pve/${clusterId}/nodes/${encodeURIComponent(t.node)}/tasks/${encodeURIComponent(t.upid)}/status`
+          );
+          const j = await r.json().catch(() => null);
+          const d = (j?.data ?? {}) as { status?: string; exitstatus?: string };
+          const finished = d.exitstatus !== undefined || d.status === 'stopped';
+          if (!finished || cancelled) continue;
+          const ok = String(d.exitstatus ?? '')
+            .toUpperCase()
+            .includes('OK');
+          setToast(
+            ok
+              ? { kind: 'ok', msg: `${ACTION_LABEL[t.action as ActionKind]} ${t.vmid} selesai — task OK.` }
+              : {
+                  kind: 'err',
+                  msg: `${ACTION_LABEL[t.action as ActionKind]} ${t.vmid} GAGAL: ${d.exitstatus ?? 'unknown error'}`
+                }
+          );
+          setTasks((cur) => cur.filter((x) => x.upid !== t.upid));
+          router.refresh();
+        } catch {
+          // biarkan dicoba lagi di tick berikutnya
+        }
+      }
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [tasks, clusterId, router]);
+
+  const rowHasTask = (g: GuestRow) => tasks.some((t) => t.vmid === g.vmid);
 
   const nodeList = useMemo(() => Array.from(new Set(guests.map((g) => g.node))).sort(), [guests]);
 
@@ -130,10 +177,16 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
       if (!res.ok) {
         setToast({ kind: 'err', msg: json.error ?? `Perintah ${action} gagal (HTTP ${res.status}).` });
       } else {
-        setToast({ kind: 'ok', msg: `Perintah ${action} untuk ${g.vmid} dikirim — menunggu task Proxmox…` });
+        const upid =
+          typeof json.data === 'string' && json.data.startsWith('UPID:') ? json.data : null;
+        if (upid) {
+          setTasks((cur) => [...cur, { upid, node: g.node, vmid: g.vmid, action }]);
+          setToast({ kind: 'ok', msg: `${ACTION_LABEL[action]} ${g.vmid} — task berjalan, memantau status…` });
+        } else {
+          setToast({ kind: 'ok', msg: `Perintah ${action} untuk ${g.vmid} dikirim.` });
+          router.refresh();
+        }
       }
-      setTimeout(() => router.refresh(), 1200);
-      setTimeout(() => router.refresh(), 4000);
     } catch (e) {
       setToast({ kind: 'err', msg: (e as Error).message });
     } finally {
@@ -261,7 +314,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                         <ActBtn
                           title="Start"
                           tone="emerald"
-                          busy={busy === `${g.vmid}:start`}
+                          busy={busy === `${g.vmid}:start` || rowHasTask(g)}
                           onClick={() => act(g, 'start')}
                         >
                           <PlayIcon />
@@ -272,7 +325,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                           <ActBtn
                             title="Reboot"
                             tone="ghost"
-                            busy={busy === `${g.vmid}:reboot`}
+                            busy={busy === `${g.vmid}:reboot` || rowHasTask(g)}
                             onClick={() => act(g, 'reboot')}
                           >
                             <RotateIcon />
@@ -280,7 +333,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                           <ActBtn
                             title="Shutdown"
                             tone="ghost"
-                            busy={busy === `${g.vmid}:shutdown`}
+                            busy={busy === `${g.vmid}:shutdown` || rowHasTask(g)}
                             onClick={() => act(g, 'shutdown')}
                           >
                             <PowerIcon />
@@ -288,7 +341,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                           <ActBtn
                             title="Force Stop"
                             tone="red"
-                            busy={busy === `${g.vmid}:stop`}
+                            busy={busy === `${g.vmid}:stop` || rowHasTask(g)}
                             onClick={() => act(g, 'stop')}
                           >
                             <StopIcon />

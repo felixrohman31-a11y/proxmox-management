@@ -3,6 +3,7 @@ import PageHeader from '@/components/PageHeader';
 import ClusterSelector from '@/components/ClusterSelector';
 import StatusBadge from '@/components/StatusBadge';
 import StatCard, { Meter } from '@/components/StatCard';
+import TaskPanel from '@/components/TaskPanel';
 import { Th, Td } from '@/components/TableBits';
 import { AlertIcon, CubeIcon, LayersIcon, ServerIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
@@ -187,6 +188,8 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
               )}
             </ul>
           </section>
+
+          <TaskPanel clusterId={cluster.id} />
         </div>
       )}
     </>

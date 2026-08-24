@@ -36,3 +36,21 @@ export interface GuestRow {
   uptime: number;
   tags: string[];
 }
+
+export interface ClusterTask {
+  upid: string;
+  node: string;
+  user: string;
+  type: string;
+  vmid?: number;
+  starttime?: number;
+  endtime?: number;
+  status?: string;
+}
+
+export interface ActiveTask {
+  upid: string;
+  node: string;
+  vmid: number;
+  action: string;
+}
