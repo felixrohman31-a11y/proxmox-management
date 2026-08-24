@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
 
-type Provider = 'callmebot' | 'fonnte' | 'telegram';
+type Provider = 'fonnte' | 'telegram';
 
 const PROVIDER_INFO: Record<Provider, { label: string; hint: React.ReactNode }> = {
   telegram: {
@@ -22,16 +22,6 @@ const PROVIDER_INFO: Record<Provider, { label: string; hint: React.ReactNode }> 
       <>
         Daftar di <b>fonnte.com</b> → hubungkan device (scan QR dengan WhatsApp Anda) → salin token. Pesan terkirim
         dari nomor WA Anda sendiri.
-      </>
-    )
-  },
-  callmebot: {
-    label: 'CallMeBot (WhatsApp)',
-    hint: (
-      <>
-        Dari nomor WA tujuan, kirim <code>I allow callmebot to send me messages</code> ke nomor aktivasi yang
-        tertera di <b>callmebot.com/whatsapp</b> (nomornya kadang berubah — cek situsnya). API Key dikirim balik via
-        chat.
       </>
     )
   }
@@ -152,22 +142,6 @@ export default function WaPanel() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="6281234567890"
-            />
-          </div>
-        )}
-
-        {provider === 'callmebot' && (
-          <div>
-            <label className="label">
-              API Key {loaded && <span className="normal-case text-zinc-600">(kosongkan jika tetap)</span>}
-            </label>
-            <input
-              type="password"
-              className="input"
-              value={apikey}
-              onChange={(e) => setApikey(e.target.value)}
-              placeholder="XXXXXX"
-              autoComplete="new-password"
             />
           </div>
         )}

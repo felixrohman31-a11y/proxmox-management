@@ -9,7 +9,7 @@ import {
 } from '@/lib/ftp-backup';
 import { appendAudit } from '@/lib/audit';
 
-const PROVIDERS: WaProvider[] = ['callmebot', 'fonnte', 'telegram'];
+const PROVIDERS: WaProvider[] = ['fonnte', 'telegram'];
 
 export async function GET() {
   if (!getSessionFromCookies()) {
@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Body tidak valid.' }, { status: 400 });
   }
 
-  const raw = String(b.provider ?? 'callmebot');
+  const raw = String(b.provider ?? 'fonnte');
   if (!PROVIDERS.includes(raw as WaProvider)) {
     return NextResponse.json({ error: 'Provider tidak dikenal.' }, { status: 400 });
   }

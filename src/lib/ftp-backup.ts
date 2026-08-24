@@ -30,7 +30,7 @@ interface StoredWa {
   chatId?: string;
 }
 
-export type WaProvider = 'callmebot' | 'fonnte' | 'telegram';
+export type WaProvider = 'fonnte' | 'telegram';
 
 interface SettingsFile {
   ftp?: StoredFtp;
@@ -83,7 +83,7 @@ function migrate(parsed: SettingsFile & Partial<StoredFtp>): SettingsFile {
     };
   }
   if (out.wa && !out.wa.provider) {
-    out.wa = { ...out.wa, provider: 'callmebot' };
+    out.wa = { ...out.wa, provider: 'fonnte' };
   }
   return out;
 }
@@ -148,7 +148,7 @@ export async function getWaConfig(): Promise<WaConfigView> {
   const s = await readSettings();
   const w = s.wa;
   return {
-    provider: w?.provider ?? 'callmebot',
+    provider: w?.provider ?? 'fonnte',
     phone: w?.phone ?? '',
     chatId: w?.chatId ?? '',
     hasSecret: Boolean(w?.encApikey || w?.encBotToken)
@@ -224,16 +224,7 @@ export async function sendNotification(text: string): Promise<{ ok: boolean; mes
       return { ok: false, message: `Fonnte HTTP ${r.status}: ${j?.reason ?? '-'}` };
     }
 
-    const key = w.encApikey ? decryptString(w.encApikey) : '';
-    const phone = w.phone ?? '';
-    if (!key || !phone) return { ok: false, message: 'API Key / nomor CallMeBot belum lengkap.' };
-    const url =
-      `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}` +
-      `&text=${encodeURIComponent(text)}&apikey=${encodeURIComponent(key)}`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    const body = await r.text();
-    if (r.ok && /message/i.test(body)) return { ok: true, message: 'Pesan WhatsApp terkirim (CallMeBot).' };
-    return { ok: false, message: `CallMeBot HTTP ${r.status}: ${body.slice(0, 120)}` };
+    return { ok: false, message: 'Provider notifikasi tidak dikenal.' };
   } catch (e) {
     return { ok: false, message: `Gagal mengirim: ${(e as Error).message}` };
   }
