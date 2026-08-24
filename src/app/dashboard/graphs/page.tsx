@@ -67,6 +67,7 @@ export default async function GraphsPage({
 
       {cluster && !error && (
         <RrdExplorer
+          key={cluster.id}
           clusterId={cluster.id}
           nodes={nodes}
           guests={guests}

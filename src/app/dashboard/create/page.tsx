@@ -44,7 +44,7 @@ export default async function CreatePage({ searchParams }: { searchParams?: { c?
         <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p>
       )}
 
-      {cluster && !error && <CreateGuestForm clusterId={cluster.id} nodes={nodes} />}
+      {cluster && !error && <CreateGuestForm key={cluster.id} clusterId={cluster.id} nodes={nodes} />}
     </>
   );
 }

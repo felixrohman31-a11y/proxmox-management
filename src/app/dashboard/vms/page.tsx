@@ -54,7 +54,13 @@ export default async function VmsPage({ searchParams }: { searchParams?: { c?: s
       )}
 
       {cluster && !error && (
-        <VmTable clusterId={cluster.id} host={cluster.host} port={cluster.port} guests={guests} />
+        <VmTable
+          key={cluster.id}
+          clusterId={cluster.id}
+          host={cluster.host}
+          port={cluster.port}
+          guests={guests}
+        />
       )}
     </>
   );

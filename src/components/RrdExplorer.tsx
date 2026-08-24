@@ -62,7 +62,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
   const load = useCallback(async () => {
     let url = '';
     if (targetType === 'node') {
-      if (!nodeSel) return;
+      if (!nodeSel || !nodes.some((n) => n.node === nodeSel)) return;
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(nodeSel)}/rrddata`;
     } else {
       if (!guest) return;
@@ -89,7 +89,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clusterId, targetType, nodeSel, guest, tf]);
+  }, [clusterId, targetType, nodeSel, guest, tf, nodes]);
 
   useEffect(() => {
     load();
