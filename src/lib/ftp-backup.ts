@@ -23,9 +23,14 @@ interface StoredFtp extends FtpSettings {
 }
 
 interface StoredWa {
-  phone: string;
-  encApikey: string;
+  provider: WaProvider;
+  phone?: string;
+  encApikey?: string;
+  encBotToken?: string;
+  chatId?: string;
 }
+
+export type WaProvider = 'callmebot' | 'fonnte' | 'telegram';
 
 interface SettingsFile {
   ftp?: StoredFtp;
@@ -33,8 +38,10 @@ interface SettingsFile {
 }
 
 export interface WaConfigView {
+  provider: WaProvider;
   phone: string;
-  configured: boolean;
+  chatId: string;
+  hasSecret: boolean;
 }
 
 export interface BackupState {
@@ -60,8 +67,9 @@ function monitorPath(): string {
 }
 
 function migrate(parsed: SettingsFile & Partial<StoredFtp>): SettingsFile {
-  if (!parsed.ftp && typeof parsed.host === 'string') {
-    return {
+  let out: SettingsFile = parsed;
+  if (!out.ftp && typeof parsed.host === 'string') {
+    out = {
       ftp: {
         host: parsed.host,
         port: typeof parsed.port === 'number' ? parsed.port : 21,
@@ -70,10 +78,14 @@ function migrate(parsed: SettingsFile & Partial<StoredFtp>): SettingsFile {
         passive: parsed.passive !== false,
         autoDaily: Boolean(parsed.autoDaily),
         encPassword: typeof parsed.encPassword === 'string' ? parsed.encPassword : ''
-      }
+      },
+      wa: out.wa
     };
   }
-  return parsed;
+  if (out.wa && !out.wa.provider) {
+    out.wa = { ...out.wa, provider: 'callmebot' };
+  }
+  return out;
 }
 
 async function readSettings(): Promise<SettingsFile> {
@@ -134,40 +146,96 @@ async function ftpPassword(s: StoredFtp): Promise<string> {
 
 export async function getWaConfig(): Promise<WaConfigView> {
   const s = await readSettings();
-  return { phone: s.wa?.phone ?? '', configured: Boolean(s.wa?.encApikey) };
+  const w = s.wa;
+  return {
+    provider: w?.provider ?? 'callmebot',
+    phone: w?.phone ?? '',
+    chatId: w?.chatId ?? '',
+    hasSecret: Boolean(w?.encApikey || w?.encBotToken)
+  };
 }
 
-export async function saveWaConfig(input: { phone: string; apikey?: string }): Promise<void> {
+export interface WaSaveInput {
+  provider: WaProvider;
+  phone?: string;
+  apikey?: string;
+  botToken?: string;
+  chatId?: string;
+}
+
+export async function saveWaConfig(input: WaSaveInput): Promise<void> {
   const all = await readSettings();
+  const prev = all.wa;
+  const sameProvider = prev?.provider === input.provider;
   all.wa = {
-    phone: input.phone,
-    encApikey: input.apikey ? encryptString(input.apikey) : (all.wa?.encApikey ?? '')
+    provider: input.provider,
+    phone: input.phone ?? '',
+    encApikey:
+      input.apikey && input.apikey.trim()
+        ? encryptString(input.apikey.trim())
+        : sameProvider
+          ? (prev?.encApikey ?? '')
+          : '',
+    encBotToken:
+      input.botToken && input.botToken.trim()
+        ? encryptString(input.botToken.trim())
+        : sameProvider
+          ? (prev?.encBotToken ?? '')
+          : '',
+    chatId: input.chatId ?? ''
   };
   await writeSettings(all);
 }
 
-export async function sendWhatsApp(text: string): Promise<{ ok: boolean; message: string }> {
+export async function sendNotification(text: string): Promise<{ ok: boolean; message: string }> {
   const s = await readSettings();
-  if (!s.wa?.phone || !s.wa.encApikey) {
-    return { ok: false, message: 'WhatsApp belum dikonfigurasi.' };
-  }
-  let apikey: string;
-  try {
-    apikey = decryptString(s.wa.encApikey);
-  } catch (e) {
-    return { ok: false, message: (e as Error).message };
-  }
-  const url =
-    `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(s.wa.phone)}` +
-    `&text=${encodeURIComponent(text)}&apikey=${encodeURIComponent(apikey)}`;
+  const w = s.wa;
+  if (!w) return { ok: false, message: 'Notifikasi belum dikonfigurasi.' };
 
   try {
+    if (w.provider === 'telegram') {
+      const token = w.encBotToken ? decryptString(w.encBotToken) : '';
+      const chat = w.chatId ?? '';
+      if (!token || !chat) return { ok: false, message: 'Token bot / Chat ID belum lengkap.' };
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, text }),
+        signal: AbortSignal.timeout(20000)
+      });
+      const j = (await r.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+      if (r.ok && j?.ok) return { ok: true, message: 'Pesan Telegram terkirim.' };
+      return { ok: false, message: `Telegram HTTP ${r.status}: ${j?.description ?? '-'}` };
+    }
+
+    if (w.provider === 'fonnte') {
+      const token = w.encApikey ? decryptString(w.encApikey) : '';
+      const target = (w.phone ?? '').replace(/^0/, '62');
+      if (!token || !target) return { ok: false, message: 'Token Fonnte / nomor target belum lengkap.' };
+      const r = await fetch('https://api.fonnte.com/send', {
+        method: 'POST',
+        headers: { Authorization: token, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ target, message: text }).toString(),
+        signal: AbortSignal.timeout(20000)
+      });
+      const j = (await r.json().catch(() => null)) as { status?: boolean | string; reason?: string } | null;
+      if (r.ok && (j?.status === true || j?.status === 'true'))
+        return { ok: true, message: 'Pesan WhatsApp terkirim via Fonnte.' };
+      return { ok: false, message: `Fonnte HTTP ${r.status}: ${j?.reason ?? '-'}` };
+    }
+
+    const key = w.encApikey ? decryptString(w.encApikey) : '';
+    const phone = w.phone ?? '';
+    if (!key || !phone) return { ok: false, message: 'API Key / nomor CallMeBot belum lengkap.' };
+    const url =
+      `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}` +
+      `&text=${encodeURIComponent(text)}&apikey=${encodeURIComponent(key)}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
     const body = await r.text();
-    if (r.ok && /message/i.test(body)) return { ok: true, message: 'Pesan WhatsApp terkirim.' };
+    if (r.ok && /message/i.test(body)) return { ok: true, message: 'Pesan WhatsApp terkirim (CallMeBot).' };
     return { ok: false, message: `CallMeBot HTTP ${r.status}: ${body.slice(0, 120)}` };
   } catch (e) {
-    return { ok: false, message: `Gagal menghubungi CallMeBot: ${(e as Error).message}` };
+    return { ok: false, message: `Gagal mengirim: ${(e as Error).message}` };
   }
 }
 
@@ -305,7 +373,7 @@ interface MonitorState {
 
 async function monitorCycle(): Promise<void> {
   const wa = await getWaConfig();
-  if (!wa.configured) return;
+  if (!wa.hasSecret) return;
 
   let mon: MonitorState = {};
   try {
@@ -345,7 +413,7 @@ async function monitorCycle(): Promise<void> {
       const downed = Object.keys(prev).filter((k) => !(k in running)).slice(0, 3);
       for (const k of downed) {
         const msg = `⚠️ PROXCENTER\nGuest MATI terdeteksi:\n${prev[k]}\nCluster: ${cluster.name}\nWaktu: ${new Date().toLocaleString('id-ID', { hour12: false })} WIB`;
-        const r = await sendWhatsApp(msg);
+        const r = await sendNotification(msg);
         await appendAudit({
           ts: new Date().toISOString(),
           user: 'monitor',

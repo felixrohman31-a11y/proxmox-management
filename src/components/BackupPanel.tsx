@@ -16,7 +16,6 @@ interface DumpRow {
   format?: string;
   size?: number;
   ctime?: number;
-  notes?: string;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -102,7 +101,9 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
     for (let i = 0; i < 300; i++) {
       await sleep(3000);
       try {
-        const r = await fetch(`/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/tasks/${encodeURIComponent(upid)}/status`);
+        const r = await fetch(
+          `/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/tasks/${encodeURIComponent(upid)}/status`
+        );
         const j = await r.json().catch(() => null);
         const d = (j?.data ?? {}) as { status?: string; exitstatus?: string };
         const finished = d.exitstatus !== undefined || d.status === 'stopped';
@@ -122,8 +123,14 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
   async function run() {
     setFormError(null);
     setDoneMsg(null);
-    if (!guest) return setFormError('Pilih guest terlebih dahulu.');
-    if (!storage) return setFormError('Pilih storage tujuan backup.');
+    if (!guest) {
+      setFormError('Pilih guest terlebih dahulu.');
+      return;
+    }
+    if (!storage) {
+      setFormError('Pilih storage tujuan backup.');
+      return;
+    }
     setPhase(`Menjalankan vzdump ${guest.type.toUpperCase()} ${guest.vmid} ke ${storage}…`);
     try {
       const body = {
@@ -131,7 +138,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
         storage,
         mode,
         compress,
-        'notes-template': '{{guestname}} â€” backup via ProxCenter'
+        'notes-template': '{{guestname}} — backup via ProxCenter'
       };
       const r = await fetch(`/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/vzdump`, {
         method: 'POST',
@@ -142,7 +149,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
       if (!r.ok || !j?.data) throw new Error(j?.error ?? `Gagal memulai backup (HTTP ${r.status}).`);
       const upid = String(j.data);
       if (!upid.startsWith('UPID:')) throw new Error('Respons task tidak valid.');
-      setPhase(`Task backup berjalan â€” proses bisa beberapa menitâ€¦`);
+      setPhase('Task backup berjalan — proses bisa beberapa menit…');
       await awaitTask(upid, `Backup ${guest.vmid}`);
       setDoneMsg(`Backup ${guest.name} (${guest.vmid}) selesai di ${storage}.`);
       await loadBackups();
@@ -155,7 +162,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
 
   async function removeDump(volid: string) {
     if (!window.confirm(`Hapus file backup?\n${volid}`)) return;
-    setPhase('Menghapus file backupâ€¦');
+    setPhase('Menghapus file backup…');
     try {
       const r = await fetch(
         `/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/storage/${encodeURIComponent(storage)}/content/${encodeURIComponent(volid)}`,
@@ -171,8 +178,6 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
     }
   }
 
-  const inputCls = 'input';
-
   return (
     <div className="space-y-5">
       <form
@@ -186,7 +191,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label">Node</label>
-            <select className={inputCls} value={node} onChange={(e) => setNode(e.target.value)}>
+            <select className="input" value={node} onChange={(e) => setNode(e.target.value)}>
               {nodes.map((n) => (
                 <option key={n.node} value={n.node} disabled={n.status !== 'online'}>
                   {n.node}
@@ -197,18 +202,18 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
           </div>
           <div>
             <label className="label">Guest</label>
-            <select className={inputCls} value={guestSel} onChange={(e) => setGuestSel(e.target.value)}>
-              <option value="">â€” pilih guest â€”</option>
+            <select className="input" value={guestSel} onChange={(e) => setGuestSel(e.target.value)}>
+              <option value="">— pilih guest —</option>
               {guests.map((g) => (
                 <option key={`${g.type}|${g.vmid}|${g.node}`} value={`${g.type}|${g.vmid}|${g.node}`}>
-                  {g.type === 'qemu' ? 'VM' : 'CT'} {g.vmid} Â· {g.name}
+                  {g.type === 'qemu' ? 'VM' : 'CT'} {g.vmid} · {g.name}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label className="label">Storage Tujuan (backup)</label>
-            <select className={inputCls} value={storage} onChange={(e) => setStorage(e.target.value)}>
+            <select className="input" value={storage} onChange={(e) => setStorage(e.target.value)}>
               {meta?.backupStorages.length ? (
                 meta.backupStorages.map((s) => (
                   <option key={s} value={s}>
@@ -216,13 +221,13 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
                   </option>
                 ))
               ) : (
-                <option value="">â€” tidak ada storage backup â€”</option>
+                <option value="">— tidak ada storage backup —</option>
               )}
             </select>
           </div>
           <div>
             <label className="label">Mode</label>
-            <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value)}>
+            <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="snapshot">Snapshot</option>
               <option value="suspend">Suspend</option>
               <option value="stop">Stop</option>
@@ -230,7 +235,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
           </div>
           <div>
             <label className="label">Kompresi</label>
-            <select className={inputCls} value={compress} onChange={(e) => setCompress(e.target.value)}>
+            <select className="input" value={compress} onChange={(e) => setCompress(e.target.value)}>
               <option value="zstd">ZSTD (cepat)</option>
               <option value="lzo">LZO</option>
               <option value="gzip">GZIP</option>
@@ -241,7 +246,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
 
         {metaLoading && (
           <p className="mt-3 flex items-center gap-2 text-sm text-zinc-500">
-            <RefreshIcon className="h-4 w-4 animate-spin" /> Memuat metadataâ€¦
+            <RefreshIcon className="h-4 w-4 animate-spin" /> Memuat metadata…
           </p>
         )}
         {metaErr && (
@@ -275,7 +280,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
       <div className="card overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 px-4 py-3">
           <h2 className="text-sm font-semibold text-zinc-200">
-            File Backup Tersimpan{guest ? ` â€” ${guest.type.toUpperCase()} ${guest.vmid}` : ''}
+            File Backup Tersimpan{guest ? ` — ${guest.type.toUpperCase()} ${guest.vmid}` : ''}
           </h2>
           <button type="button" onClick={loadBackups} disabled={!guest || backupsLoading} className="btn-ghost !py-1">
             <RefreshIcon className={`h-3.5 w-3.5 ${backupsLoading ? 'animate-spin' : ''}`} /> Muat ulang
