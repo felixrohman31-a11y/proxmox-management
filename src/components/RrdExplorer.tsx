@@ -24,6 +24,10 @@ interface Props {
 
 const TFS: Timeframe[] = ['hour', 'day', 'week', 'month', 'year'];
 
+function guestKeyOf(g: GuestLite): string {
+  return `${g.type}|${g.vmid}|${g.node}`;
+}
+
 function xFmtFor(tf: Timeframe): (ms: number) => string {
   if (tf === 'hour' || tf === 'day') {
     return (ms: number) =>
@@ -34,10 +38,15 @@ function xFmtFor(tf: Timeframe): (ms: number) => string {
 
 export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
   const [targetType, setTargetType] = useState<TargetType>(init.targetType);
-  const [nodeSel, setNodeSel] = useState(init.node ?? nodes.find((n) => n.status === 'online')?.node ?? '');
-  const [guestSel, setGuestSel] = useState(
-    init.guestKey ?? (guests[0] ? `${guests[0].type}|${guests[0].vmid}|${guests[0].node}` : '')
-  );
+  const [nodeSel, setNodeSel] = useState(() => {
+    if (init.targetType === 'node' && init.node && nodes.some((n) => n.node === init.node)) return init.node;
+    return nodes.find((n) => n.status === 'online')?.node ?? nodes[0]?.node ?? '';
+  });
+  const [guestSel, setGuestSel] = useState(() => {
+    if (init.targetType === 'guest' && init.guestKey && guests.some((g) => guestKeyOf(g) === init.guestKey))
+      return init.guestKey;
+    return guests[0] ? guestKeyOf(guests[0]) : '';
+  });
   const [tf, setTf] = useState<Timeframe>(init.tf);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -48,6 +57,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     const [t, vmid, node] = (guestSel || '').split('|');
     return guests.find((g) => g.type === t && String(g.vmid) === vmid && g.node === node);
   }, [guestSel, guests]);
+
 
   const load = useCallback(async () => {
     let url = '';
