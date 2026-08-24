@@ -1,0 +1,118 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { CubeIcon, GridIcon, LayersIcon, LogoutIcon } from './icons';
+
+const NAV = [
+  { href: '/dashboard', label: 'Overview', icon: GridIcon },
+  { href: '/dashboard/vms', label: 'Virtual Machines', icon: CubeIcon },
+  { href: '/dashboard/clusters', label: 'Clusters', icon: LayersIcon }
+];
+
+function isActive(pathname: string, href: string): boolean {
+  return href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  window.location.href = '/login';
+}
+
+function Brand() {
+  return (
+    <Link href="/dashboard" className="flex items-center gap-2.5">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 text-sm font-black text-white">
+        PX
+      </span>
+      <span>
+        <span className="block text-sm font-bold leading-tight text-zinc-100">ProxCenter</span>
+        <span className="block text-[10px] uppercase tracking-wider text-zinc-500">Multi-Cluster Panel</span>
+      </span>
+    </Link>
+  );
+}
+
+function LogoutButton() {
+  return (
+    <button
+      onClick={logout}
+      title="Keluar"
+      className="rounded-md p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-red-400"
+    >
+      <LogoutIcon />
+    </button>
+  );
+}
+
+export function Sidebar({ username }: { username: string }) {
+  const pathname = usePathname();
+  return (
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-zinc-800 bg-zinc-950/80 md:flex">
+      <div className="p-4">
+        <Brand />
+      </div>
+      <nav className="flex-1 space-y-1 px-3">
+        {NAV.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Ico = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                active
+                  ? 'bg-orange-500/10 font-medium text-orange-400'
+                  : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'
+              }`}
+            >
+              <Ico className="h-4 w-4" /> {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="border-t border-zinc-800 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-zinc-800 text-xs font-bold uppercase text-orange-400">
+              {username.slice(0, 2)}
+            </span>
+            <span className="truncate text-sm text-zinc-300">{username}</span>
+          </div>
+          <LogoutButton />
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+export function MobileHeader({ username }: { username: string }) {
+  const pathname = usePathname();
+  return (
+    <header className="sticky top-0 z-40 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur md:hidden">
+      <div className="flex items-center justify-between px-4 py-3">
+        <Brand />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-500">{username}</span>
+          <LogoutButton />
+        </div>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
+        {NAV.map((item) => {
+          const active = isActive(pathname, item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                active ? 'bg-orange-500/15 text-orange-400' : 'text-zinc-400 hover:bg-zinc-900'
+              }`}
+            >
+              {item.label}
+            </Link>
+          );
+        })}
+      </nav>
+    </header>
+  );
+}
