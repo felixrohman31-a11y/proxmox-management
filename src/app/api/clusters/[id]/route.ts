@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookies } from '@/lib/session';
-import { deleteCluster, updateCluster } from '@/lib/store';
+import { deleteCluster, getStoredCluster, updateCluster } from '@/lib/store';
+import { appendAudit } from '@/lib/audit';
 
 type Ctx = { params: { id: string } };
 
@@ -42,6 +43,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (!updated) {
       return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
     }
+    await appendAudit({
+      ts: new Date().toISOString(),
+      user: getSessionFromCookies()?.u ?? '?',
+      action: 'cluster.update',
+      target: updated.name
+    });
     return NextResponse.json({ data: updated });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
@@ -53,10 +60,17 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
   }
   try {
+    const stored = getStoredCluster(ctx.params.id);
     const ok = await deleteCluster(ctx.params.id);
     if (!ok) {
       return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
     }
+    await appendAudit({
+      ts: new Date().toISOString(),
+      user: getSessionFromCookies()?.u ?? '?',
+      action: 'cluster.delete',
+      target: stored?.name ?? ctx.params.id
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

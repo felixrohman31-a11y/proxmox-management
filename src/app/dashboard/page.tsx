@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import PageHeader from '@/components/PageHeader';
 import ClusterSelector from '@/components/ClusterSelector';
+import ReportDownload from '@/components/ReportDownload';
 import StatusBadge from '@/components/StatusBadge';
 import StatCard, { Meter } from '@/components/StatCard';
 import TaskPanel from '@/components/TaskPanel';
@@ -53,6 +54,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
         title="Overview"
         subtitle={cluster ? `Ringkasan resource cluster "${cluster.name}"` : 'Belum ada cluster terhubung'}
       >
+        <ReportDownload clusterId={cluster?.id ?? ''} />
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard" />
       </PageHeader>
 

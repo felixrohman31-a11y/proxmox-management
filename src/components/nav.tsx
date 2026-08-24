@@ -2,14 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChartIcon, CubeIcon, GridIcon, LayersIcon, LogoutIcon, PlusIcon } from './icons';
+import { ChartIcon, CubeIcon, GearIcon, GridIcon, LayersIcon, LogoutIcon, PlusIcon } from './icons';
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: GridIcon },
   { href: '/dashboard/vms', label: 'Virtual Machines', icon: CubeIcon },
   { href: '/dashboard/create', label: 'Buat Guest', icon: PlusIcon },
   { href: '/dashboard/graphs', label: 'Grafik Monitoring', icon: ChartIcon },
-  { href: '/dashboard/clusters', label: 'Clusters', icon: LayersIcon }
+  { href: '/dashboard/clusters', label: 'Clusters', icon: LayersIcon },
+  { href: '/dashboard/settings', label: 'Pengaturan', icon: GearIcon }
 ];
 
 function isActive(pathname: string, href: string): boolean {

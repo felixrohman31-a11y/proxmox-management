@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/session';
+import { appendAudit } from '@/lib/audit';
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 5 * 60 * 1000;
@@ -54,10 +55,18 @@ export async function POST(req: NextRequest) {
     attempts.set(ip, { count, lockUntil: count >= MAX_ATTEMPTS ? now + LOCK_MS : 0 });
     if (attempts.size > 5000) attempts.clear();
     await delayFailure();
+    await appendAudit({
+      ts: new Date().toISOString(),
+      user: uname || '-',
+      action: 'login.gagal',
+      target: `percobaan ke-${count}`,
+      ip
+    });
     return NextResponse.json({ error: 'Username atau password salah.' }, { status: 401 });
   }
 
   attempts.delete(ip);
+  await appendAudit({ ts: new Date().toISOString(), user: uname, action: 'login.ok', target: ip, ip });
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, createSessionToken(uname), {
     httpOnly: true,

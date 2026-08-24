@@ -136,6 +136,76 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
 
   const rowHasTask = (g: GuestRow) => tasks.some((t) => t.vmid === g.vmid);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const selKey = (g: GuestRow) => `${g.type}-${g.vmid}-${g.node}`;
+  const selectable = (g: GuestRow) =>
+    !g.template && (g.status === 'running' || g.status === 'stopped');
+
+  function toggleSel(g: GuestRow) {
+    const k = selKey(g);
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+  }
+
+  function toggleAllFiltered() {
+    const eligible = filtered.filter(selectable);
+    const allSelected = eligible.length > 0 && eligible.every((g) => selected.has(selKey(g)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const g of eligible) {
+        if (allSelected) next.delete(selKey(g));
+        else next.add(selKey(g));
+      }
+      return next;
+    });
+  }
+
+  async function bulkRun(action: 'start' | 'shutdown') {
+    const targets = filtered.filter(
+      (g) =>
+        selected.has(selKey(g)) &&
+        selectable(g) &&
+        (action === 'start' ? g.status === 'stopped' : g.status === 'running')
+    );
+    if (targets.length === 0) return;
+    const label = ACTION_LABEL[action];
+    if (!window.confirm(`Jalankan ${label} untuk ${targets.length} guest terpilih?`)) return;
+
+    setBusy(`bulk:${action}`);
+    let sent = 0;
+    let fail = 0;
+    for (const g of targets) {
+      try {
+        const res = await fetch(
+          `/api/pve/${clusterId}/nodes/${encodeURIComponent(g.node)}/${g.type}/${g.vmid}/status/${action}`,
+          { method: 'POST' }
+        );
+        const j = await res.json().catch(() => null);
+        const upid =
+          typeof j?.data === 'string' && j.data.startsWith('UPID:') ? j.data : null;
+        if (res.ok && upid) {
+          setTasks((cur) => [...cur, { upid, node: g.node, vmid: g.vmid, action }]);
+          sent++;
+        } else {
+          fail++;
+        }
+      } catch {
+        fail++;
+      }
+    }
+    setBusy(null);
+    setSelected(new Set());
+    setToast({
+      kind: fail > 0 ? 'err' : 'ok',
+      msg: `${label} massal: ${sent} task dikirim${fail > 0 ? `, ${fail} gagal` : ''}.`
+    });
+    setTimeout(() => router.refresh(), 1500);
+  }
+
   const nodeList = useMemo(() => Array.from(new Set(guests.map((g) => g.node))).sort(), [guests]);
 
   const filtered = useMemo(() => {
@@ -157,6 +227,15 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
       );
     });
   }, [guests, q, typeF, statusF, nodeF]);
+
+  const selectedGuests = useMemo(
+    () => filtered.filter((g) => selected.has(selKey(g))),
+    [filtered, selected]
+  );
+
+  const eligibleFiltered = filtered.filter(selectable);
+  const allFilteredSelected =
+    eligibleFiltered.length > 0 && eligibleFiltered.every((g) => selected.has(selKey(g)));
 
   async function act(g: GuestRow, action: ActionKind) {
     if (
@@ -247,11 +326,39 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
         </select>
       </div>
 
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-800/50 bg-orange-500/5 p-3 text-sm">
+          <span className="font-medium text-zinc-200">{selected.size} dipilih</span>
+          {selectedGuests.some((g) => g.status === 'stopped') && (
+            <button type="button" className="btn-primary" disabled={Boolean(busy) || tasks.length > 0} onClick={() => bulkRun('start')}>
+              Start Terpilih
+            </button>
+          )}
+          {selectedGuests.some((g) => g.status === 'running') && (
+            <button type="button" className="btn-danger" disabled={Boolean(busy) || tasks.length > 0} onClick={() => bulkRun('shutdown')}>
+              Shutdown Terpilih
+            </button>
+          )}
+          <button type="button" className="btn-ghost" onClick={() => setSelected(new Set())}>
+            Bersihkan
+          </button>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left">
+          <table className="w-full min-w-[1120px] text-left">
             <thead className="bg-zinc-900/60">
               <tr>
+                <Th className="w-8">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleAllFiltered}
+                    aria-label="Pilih semua"
+                    className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
+                  />
+                </Th>
                 <Th>VMID</Th>
                 <Th>Nama</Th>
                 <Th>Tipe</Th>
@@ -267,6 +374,17 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
             <tbody className="divide-y divide-zinc-800/70">
               {filtered.map((g) => (
                 <tr key={`${g.type}-${g.vmid}-${g.node}`} className="hover:bg-zinc-900/40">
+                  <Td>
+                    {selectable(g) && (
+                      <input
+                        type="checkbox"
+                        checked={selected.has(selKey(g))}
+                        onChange={() => toggleSel(g)}
+                        aria-label={`Pilih ${g.name}`}
+                        className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
+                      />
+                    )}
+                  </Td>
                   <Td>
                     <span className="font-mono text-xs text-zinc-400">{g.vmid}</span>
                   </Td>
@@ -373,7 +491,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-10 text-center text-sm text-zinc-500">
+                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-zinc-500">
                     Tidak ada guest yang cocok dengan filter.
                   </td>
                 </tr>

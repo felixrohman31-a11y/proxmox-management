@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookies } from '@/lib/session';
 import { createCluster, listClustersSync } from '@/lib/store';
+import { appendAudit } from '@/lib/audit';
 
 export async function GET() {
   if (!getSessionFromCookies()) {
@@ -49,6 +50,13 @@ export async function POST(req: NextRequest) {
       authMethod,
       password: authMethod === 'password' ? password : undefined,
       token: authMethod === 'token' ? token : undefined
+    });
+    await appendAudit({
+      ts: new Date().toISOString(),
+      user: getSessionFromCookies()?.u ?? '?',
+      action: 'cluster.create',
+      target: name,
+      detail: `${host}:${port} (${authMethod})`
     });
     return NextResponse.json({ data: created }, { status: 201 });
   } catch (e) {
