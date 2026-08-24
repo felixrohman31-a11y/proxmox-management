@@ -5,10 +5,10 @@ import { useState } from 'react';
 export default function ReportDownload({ clusterId }: { clusterId: string }) {
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
 
-  function download() {
+  function download(format: 'html' | 'txt') {
     const [y, m] = month.split('-');
     if (!y || !m) return;
-    window.location.href = `/api/reports/${clusterId}/monthly?year=${y}&month=${Number(m)}`;
+    window.location.href = `/api/reports/${clusterId}/monthly?year=${y}&month=${Number(m)}&format=${format}`;
   }
 
   return (
@@ -20,8 +20,16 @@ export default function ReportDownload({ clusterId }: { clusterId: string }) {
         onChange={(e) => setMonth(e.target.value)}
         aria-label="Periode laporan"
       />
-      <button type="button" className="btn-primary" onClick={download}>
-        Unduh Laporan
+      <button
+        type="button"
+        className="btn-primary"
+        onClick={() => download('html')}
+        title="Unduh laporan dengan grafik — buka di browser lalu cetak ke PDF"
+      >
+        Laporan + Grafik
+      </button>
+      <button type="button" className="btn-ghost" onClick={() => download('txt')} title="Unduh versi teks polos">
+        TXT
       </button>
     </div>
   );
