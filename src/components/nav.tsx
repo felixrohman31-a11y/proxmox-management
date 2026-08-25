@@ -13,7 +13,6 @@ import {
   PlusIcon
 } from './icons';
 import { useL, useLocale, setLangCookie } from './lang-context';
-import LangToggle from './LangToggle';
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
@@ -27,7 +26,6 @@ async function logout() {
 export function Sidebar({ username }: { username: string }) {
   const pathname = usePathname();
   const L = useL();
-  const locale = useLocale();
 
   const NAV = [
     { href: '/dashboard', label: L.nav.overview, icon: GridIcon },
@@ -64,7 +62,7 @@ export function Sidebar({ username }: { username: string }) {
         })}
       </nav>
       <div className="space-y-2 border-t border-zinc-800 p-3">
-        <div className="px-1"><LangToggle /></div>
+        
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-zinc-800 text-xs font-bold uppercase text-orange-400">
@@ -80,7 +78,6 @@ export function Sidebar({ username }: { username: string }) {
             <LogoutIcon />
           </button>
         </div>
-        <span className="hidden">{locale}</span>
       </div>
     </aside>
   );
@@ -105,7 +102,6 @@ export function MobileHeader({ username }: { username: string }) {
       <div className="flex items-center justify-between px-4 py-3">
         <Brand />
         <div className="flex items-center gap-2">
-          <LangToggle />
           <button
             onClick={logout}
             title={L.nav.logout}
