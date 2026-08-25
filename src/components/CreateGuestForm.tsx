@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertIcon, RefreshIcon } from './icons';
 import type { CreateMeta } from '@/types';
+import { fmtBytes } from '@/lib/format';
 
 interface Props {
   clusterId: string;
@@ -58,6 +59,8 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
   const [dlStorage, setDlStorage] = useState('');
   const [dlUrl, setDlUrl] = useState('');
   const [isoFile, setIsoFile] = useState<File | null>(null);
+  const [upPct, setUpPct] = useState<number | null>(null);
+  const [upBytes, setUpBytes] = useState<{ loaded: number; total: number } | null>(null);
 
   const [phase, setPhase] = useState<Phase>(null);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
@@ -181,6 +184,36 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
     }
   }
 
+  function uploadViaXhr(file: File): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        'POST',
+        `/api/upload/${clusterId}/${encodeURIComponent(node)}/${encodeURIComponent(dlStorage)}`
+      );
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        setUpPct((e.loaded / e.total) * 100);
+        setUpBytes({ loaded: e.loaded, total: e.total });
+      };
+      xhr.onload = () => {
+        let j: { error?: string } | null = null;
+        try {
+          j = JSON.parse(xhr.responseText || '{}');
+        } catch {
+          // respons bukan JSON
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(j?.error ?? `Unggah gagal (HTTP ${xhr.status}).`));
+      };
+      xhr.onerror = () => reject(new Error('Koneksi ke panel terputus saat mengunggah.'));
+      xhr.ontimeout = () => reject(new Error('Waktu unggah habis.'));
+      xhr.send(fd);
+    });
+  }
+
   async function uploadIso() {
     setFormError(null);
     if (!isoFile) return;
@@ -193,15 +226,10 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
       return;
     }
     try {
-      setPhase({ label: `Mengunggah ${isoFile.name} (${(isoFile.size / 1024 ** 2).toFixed(0)} MB)…` });
-      const fd = new FormData();
-      fd.append('file', isoFile);
-      const r = await fetch(
-        `/api/upload/${clusterId}/${encodeURIComponent(node)}/${encodeURIComponent(dlStorage)}`,
-        { method: 'POST', body: fd }
-      );
-      const j = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(j?.error ?? `Unggah gagal (HTTP ${r.status}).`);
+      setUpPct(0);
+      setUpBytes({ loaded: 0, total: isoFile.size });
+      setPhase({ label: `Mengunggah ${isoFile.name}…` });
+      await uploadViaXhr(isoFile);
       setDoneMsg(`ISO ${isoFile.name} berhasil diunggah ke ${dlStorage}.`);
       setIsoFile(null);
       await loadMeta();
@@ -209,6 +237,8 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
       setFormError((e as Error).message);
     } finally {
       setPhase(null);
+      setUpPct(null);
+      setUpBytes(null);
     }
   }
 
@@ -578,12 +608,29 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                         type="button"
                         className="btn-ghost"
                         onClick={uploadIso}
-                        disabled={Boolean(phase) || !isoFile || !dlStorage}
+                        disabled={Boolean(phase) || !isoFile || !dlStorage || upPct !== null}
                       >
                         Unggah ke {dlStorage || 'storage'}
                       </button>
                       <span className="text-xs text-zinc-600">maks ±512 MB lewat panel</span>
                     </div>
+
+                    {upPct !== null && upBytes && (
+                      <div className="rounded-lg border border-orange-800/50 bg-orange-500/5 p-3">
+                        <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-400">
+                          <span className="font-medium">Mengunggah {isoFile?.name}</span>
+                          <span className="tabular-nums text-zinc-300">
+                            {upPct.toFixed(1)}% · {fmtBytes(upBytes.loaded)} / {fmtBytes(upBytes.total)}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                          <div
+                            className="h-full rounded-full bg-orange-500 transition-[width] duration-150"
+                            style={{ width: `${Math.min(100, upPct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </fieldset>
               )}
