@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertIcon, RefreshIcon } from './icons';
-import { useL, setLangCookie } from './lang-context';
+import { useL } from './lang-context';
 import LangToggle from './LangToggle';
 
 export default function LoginForm() {

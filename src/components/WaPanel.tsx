@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
-import { useL, setLangCookie } from './lang-context';
-import LangToggle from './LangToggle';
+import { useL } from './lang-context';
 
 type Provider = 'fonnte' | 'telegram';
 
@@ -88,10 +87,7 @@ export default function WaPanel() {
       }}
       className="card p-5"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-200">{L.wa.title}</h2>
-        <LangToggle compact />
-      </div>
+      <h2 className="text-sm font-semibold text-zinc-200">{L.wa.title}</h2>
       <p className="mt-1 mb-4 text-xs leading-relaxed text-zinc-500">{L.wa.desc}</p>
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2">

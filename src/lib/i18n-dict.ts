@@ -337,6 +337,8 @@ const id = {
   settings: {
     title: 'Pengaturan',
     sub: 'Backup, notifikasi, dan jejak audit panel',
+    langTitle: 'Bahasa',
+    langDesc: 'Pilih bahasa tampilan panel.',
   },
   ftp: {
     title: 'Backup Konfigurasi ke FTP',
@@ -755,6 +757,8 @@ const en: Dict = {
   settings: {
     title: 'Settings',
     sub: 'Panel backup, notifications, and audit trail',
+    langTitle: 'Language',
+    langDesc: 'Choose the panel display language.',
   },
   ftp: {
     title: 'FTP Configuration Backup',

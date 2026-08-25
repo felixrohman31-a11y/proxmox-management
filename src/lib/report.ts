@@ -1,5 +1,7 @@
 import { getPveClient, PveError } from './pve';
 import { readAudit } from './audit';
+import { getReportStrings } from './report-strings';
+type ReportStrings = ReturnType<typeof getReportStrings>;
 import type { PublicCluster } from '@/types';
 
 interface Res {
@@ -37,30 +39,28 @@ function fmtPct(part?: number | null, total?: number | null): string {
   return `${Math.round((part / total) * 100)}%`;
 }
 
-function kategori(pct: number): string {
-  if (pct >= 85) return 'KRITIS (hampir penuh)';
-  if (pct >= 70) return 'Waspada (mulai penuh)';
-  return 'Aman';
+function kategori(pct: number, R: ReportStrings): string {
+  if (pct >= 85) return R.critical;
+  if (pct >= 70) return R.warning;
+  return R.safe;
 }
 
-function hariDariDetik(sec?: number): string {
-  if (!sec || sec < 86400) return '< 1 hari';
+function daysFromSec(sec: number | undefined, en: boolean): string {
+  if (!sec || sec < 86400) return en ? '< 1 day' : '< 1 hari';
   const d = Math.floor(sec / 86400);
-  return `${d} hari`;
+  return en ? `${d} days` : `${d} hari`;
 }
-
-const BULAN = [
-  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
 
 export async function buildMonthlyReport(
   cluster: PublicCluster,
   year: number,
-  month: number
+  month: number,
+  locale: 'id' | 'en' = 'id'
 ): Promise<{ filename: string; content: string }> {
+  const R = getReportStrings(locale);
+  const en = locale === 'en';
   const client = getPveClient(cluster.id);
-  if (!client) throw new PveError('Cluster tidak ditemukan.', 404);
+  if (!client) throw new PveError('Cluster not found.', 404);
 
   const res = ((await client.get<Res[]>('/cluster/resources').catch(() => [])) ?? []) as Res[];
   const nodes = res.filter((r) => r.type === 'node');
@@ -96,7 +96,6 @@ export async function buildMonthlyReport(
 
   const auditMonth = (await readAudit(2000)).filter((a) => a.ts.startsWith(`${year}-${String(month).padStart(2, '0')}`));
 
-  // ===== Ringkasan otomatis =====
   const onlineNodes = nodes.filter((n) => n.status === 'online');
   const runningGuests = guests.filter((g) => !g.template && g.status === 'running');
   const stoppedGuests = guests.filter((g) => !g.template && g.status !== 'running');
@@ -105,116 +104,129 @@ export async function buildMonthlyReport(
   const kritisStorage = storagePcts.filter((x) => x.pct >= 85);
   const waspadaStorage = storagePcts.filter((x) => x.pct >= 70 && x.pct < 85);
 
-  const alasanPerhatian: string[] = [];
+  const reasons: string[] = [];
   if (onlineNodes.length < nodes.length)
-    alasanPerhatian.push(`${nodes.length - onlineNodes.length} server fisik tidak aktif`);
+    reasons.push(en ? `${nodes.length - onlineNodes.length} physical servers offline` : `${nodes.length - onlineNodes.length} server fisik tidak aktif`);
   if (kritisStorage.length)
-    alasanPerhatian.push(`${kritisStorage.length} penyimpanan berstatus KRITIS (>85%)`);
+    reasons.push(en ? `${kritisStorage.length} storage at CRITICAL level (>85%)` : `${kritisStorage.length} penyimpanan berstatus KRITIS (>85%)`);
   if (waspadaStorage.length)
-    alasanPerhatian.push(`${waspadaStorage.length} penyimpanan mulai penuh (70-85%)`);
-  if (failedTasks.length) alasanPerhatian.push(`${failedTasks.length} proses teknis gagal di bulan ini`);
-  if (stoppedGuests.length) alasanPerhatian.push(`${stoppedGuests.length} mesin virtual/container dalam keadaan mati`);
+    reasons.push(en ? `${waspadaStorage.length} storage nearly full (70-85%)` : `${waspadaStorage.length} penyimpanan mulai penuh (70-85%)`);
+  if (failedTasks.length)
+    reasons.push(en ? `${failedTasks.length} technical processes failed this month` : `${failedTasks.length} proses teknis gagal di bulan ini`);
+  if (stoppedGuests.length)
+    reasons.push(en ? `${stoppedGuests.length} VMs/containers are powered off` : `${stoppedGuests.length} mesin virtual/container dalam keadaan mati`);
 
   const kondisi =
-    alasanPerhatian.length === 0 ? 'SEHAT' : kritisStorage.length ? 'PERLU TINDAK LANJUT SEGERA' : 'CENDERUNG SEHAT, ADA CATATAN';
+    reasons.length === 0 ? R.healthy : kritisStorage.length ? R.needsAction : R.generallyHealthy;
 
   const L: string[] = [];
   const garis = '='.repeat(64);
   L.push(garis);
-  L.push(`LAPORAN BULANAN INFRASTRUKTUR VIRTUALISASI`);
-  L.push(`Cluster : ${cluster.name} (${cluster.host})`);
-  L.push(`Periode : ${BULAN[month]} ${year}`);
-  L.push(`Dibuat  : ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour12: false })} WIB oleh Proxmox Management`);
+  L.push(R.reportTitle);
+  L.push(`${R.cluster}: ${cluster.name} (${cluster.host})`);
+  L.push(`${R.period}: ${R.months[month]} ${year}`);
+  L.push(`${R.generated}: ${now.toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour12: false })} — ${R.by}`);
   L.push(garis);
   L.push('');
-  L.push('A. RINGKASAN UNTUK PIMPINAN');
-  L.push(`   Kondisi umum infrastruktur : ${kondisi}`);
-  L.push(`   Server fisik aktif         : ${onlineNodes.length} dari ${nodes.length}`);
-  L.push(`   Mesin berjalan             : ${runningGuests.length} dari ${guests.length} (sisanya ${stoppedGuests.length} mati)`);
-  L.push(`   Gangguan/proses gagal      : ${failedTasks.length} kejadian`);
-  if (alasanPerhatian.length) {
-    L.push('   Hal yang perlu diperhatikan:');
-    for (const a of alasanPerhatian) L.push(`     - ${a}`);
+  L.push(R.secA);
+  L.push(`   ${R.condition}: ${kondisi}`);
+  L.push(`   ${R.serversOnline}: ${onlineNodes.length} / ${nodes.length}`);
+  L.push(`   ${R.guestsRunning}: ${runningGuests.length} / ${guests.length} (${stoppedGuests.length} ${R.guestsStopped})`);
+  L.push(`   ${R.failedProcesses}: ${failedTasks.length} ${R.incidents}`);
+  if (reasons.length) {
+    L.push(`   ${R.attention}`);
+    for (const a of reasons) L.push(`     - ${a}`);
   }
   L.push('');
 
-  L.push('B. KONDISI SERVER FISIK');
+  L.push(R.secB);
   for (const n of nodes) {
     const memPct = fmtPct(n.mem, n.maxmem);
-    L.push(`   - ${n.node}: ${n.status === 'online' ? 'AKTIF' : 'TIDAK AKTIF'}, operasional ${hariDariDetik(n.uptime)}, beban kerja ${Math.round((n.cpu ?? 0) * 100)}%, memori terpakai ${memPct} (${fmtGiB(n.mem)} dari ${fmtGiB(n.maxmem)})`);
+    const st = n.status === 'online' ? R.online : R.offline;
+    L.push(`   - ${n.node}: ${st}, ${R.uptime} ${daysFromSec(n.uptime, en)}, ${R.load} ${Math.round((n.cpu ?? 0) * 100)}%, ${R.memUsed} ${memPct} (${fmtGiB(n.mem)} / ${fmtGiB(n.maxmem)})`);
   }
   L.push('');
 
-  L.push('C. MESIN VIRTUAL & CONTAINER');
-  L.push(`   Total ${guests.length} unit: ${runningGuests.length} berjalan, ${stoppedGuests.length} mati, ${guests.filter((g) => g.template).length} template.`);
+  L.push(R.secC);
+  const tplCount = guests.filter((g) => g.template).length;
+  L.push(`   ${R.total}: ${guests.length} — ${runningGuests.length} ${R.runningLower}, ${stoppedGuests.length} ${R.stoppedLower}, ${tplCount} ${R.templateLower}`);
   const maxList = Math.min(guests.length, 25);
   const sorted = [...guests].sort((a, b) => (a.vmid ?? 0) - (b.vmid ?? 0));
   for (const g of sorted.slice(0, maxList)) {
-    const status = g.template ? 'template' : g.status === 'running' ? 'BERJALAN' : String(g.status ?? '?').toUpperCase();
-    L.push(`   - [${status}] ${g.name ?? '-'} (ID ${g.vmid}, node ${g.node}) — memori ${fmtPct(g.mem, g.maxmem)} terpakai`);
+    const status = g.template ? R.templateLower.toUpperCase() : g.status === 'running' ? R.running : String(g.status ?? '?').toUpperCase();
+    L.push(`   - [${status}] ${g.name ?? '-'} (ID ${g.vmid}, ${g.node}) — ${R.mem} ${fmtPct(g.mem, g.maxmem)}`);
   }
-  if (guests.length > maxList) L.push(`   ... dan ${guests.length - maxList} lainnya (detail lengkap di panel)`);
+  if (guests.length > maxList)
+    L.push(`   ... ${R.andOthers.replace('{n}', String(guests.length - maxList))}`);
   L.push('');
 
-  L.push('D. KAPASITAS PENYIMPANAN');
+  L.push(R.secD);
   for (const { s, pct } of storagePcts.sort((a, b) => b.pct - a.pct)) {
-    L.push(`   - ${s.storage} (node ${s.node}, ${s.type}): ${fmtPct(s.used, s.total)} terpakai (${fmtGiB(s.used)} dari ${fmtGiB(s.total)}) — ${kategori(pct)}`);
+    L.push(`   - ${s.storage} (${s.node}, ${s.type}): ${fmtPct(s.used, s.total)} ${R.used} (${fmtGiB(s.used)} / ${fmtGiB(s.total)}) — ${kategori(pct, R)}`);
   }
-  if (!storages.length) L.push('   Tidak ada data penyimpanan.');
+  if (!storages.length) L.push(`   ${R.noStorageData}`);
   L.push('');
 
-  L.push('E. CATATAN KEJADIAN PENTING');
+  L.push(R.secE);
   if (!failedTasks.length) {
-    L.push('   Tidak ada kegagalan proses teknis yang tercatat pada periode ini.');
+    L.push(`   ${R.noEvents}`);
   } else {
-    L.push(`   Terdapat ${failedTasks.length} kegagalan, antara lain:`);
+    L.push(`   ${R.eventCount.replace('{n}', String(failedTasks.length))}`);
     for (const t of failedTasks.slice(0, 5)) {
-      L.push(`   - ${t.type ?? 'proses'} pada ${new Date((t.starttime ?? 0) * 1000).toLocaleDateString('id-ID')} — status: ${t.status}`);
+      L.push(`   - ${t.type ?? 'process'} ${new Date((t.starttime ?? 0) * 1000).toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID')} — ${t.status}`);
     }
-    if (failedTasks.length > 5) L.push(`   ... dan ${failedTasks.length - 5} lainnya.`);
+    if (failedTasks.length > 5) L.push(`   ... ${R.moreEvents.replace('{n}', String(failedTasks.length - 5))}`);
   }
   L.push('');
 
-  L.push('F. REKOMENDASI TINDAK LANJUT');
-  let adaRekom = false;
+  L.push(R.secF);
+  let hasRec = false;
   for (const { s, pct } of kritisStorage) {
-    L.push(`   - Segera tambah/bersihkan kapasitas "${s.storage}" (terpakai ${Math.round(pct)}%).`);
-    adaRekom = true;
+    L.push(`   - ${R.recStoreCritical.replace('{s}', s.storage ?? '').replace('{p}', String(Math.round(pct)))}`);
+    hasRec = true;
   }
   for (const { s, pct } of waspadaStorage) {
-    L.push(`   - Pantau kapasitas "${s.storage}" (${Math.round(pct)}%) dan rencanakan penambahan ruang.`);
-    adaRekom = true;
+    L.push(`   - ${R.recStoreWarning.replace('{s}', s.storage ?? '').replace('{p}', String(Math.round(pct)))}`);
+    hasRec = true;
   }
   if (onlineNodes.length < nodes.length) {
-    L.push('   - Periksa server fisik yang tidak aktif bersama tim teknis.');
-    adaRekom = true;
+    L.push(`   - ${R.recOfflineNode}`);
+    hasRec = true;
   }
   if (failedTasks.length) {
-    L.push('   - Tinjau proses yang gagal di atas agar tidak berulang bulan depan.');
-    adaRekom = true;
+    L.push(`   - ${R.recFailedTasks}`);
+    hasRec = true;
   }
   if (stoppedGuests.length) {
-    L.push(`   - Konfirmasi apakah ${stoppedGuests.length} mesin yang mati memang sudah tidak digunakan.`);
-    adaRekom = true;
+    L.push(`   - ${R.recStoppedGuests.replace('{n}', String(stoppedGuests.length))}`);
+    hasRec = true;
   }
-  if (!adaRekom) L.push('   Semua indikator dalam batas normal — tidak ada tindakan khusus bulan ini.');
+  if (!hasRec) L.push(`   ${R.noRec}`);
   L.push('');
 
-  L.push('G. LAMPIRAN: AKTIVITAS ADMINISTRASI PANEL');
-  L.push(`   Jumlah aksi tercatat: ${auditMonth.length}`);
+  L.push(R.secG);
+  L.push(`   ${R.auditActions.replace('{n}', String(auditMonth.length))}`);
   const perAction = new Map<string, number>();
   for (const a of auditMonth) perAction.set(a.action, (perAction.get(a.action) ?? 0) + 1);
   for (const [act, c] of [...perAction.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
-    L.push(`   - ${act}: ${c} kali`);
+    L.push(`   - ${act}: ${c}`);
   }
   L.push('');
   L.push(garis);
-  L.push('Dokumen dihasilkan otomatis oleh Proxmox Management — data diambil langsung dari Proxmox VE.');
+  L.push(R.footer);
   L.push(garis);
 
   const slug = cluster.name.replace(/[^a-zA-Z0-9]+/g, '-');
   return {
-    filename: `Laporan-Virtualisasi-${slug}-${year}-${String(month).padStart(2, '0')}.txt`,
+    filename: `${locale === 'en' ? 'Report' : 'Laporan'}-Virtualization-${slug}-${year}-${String(month).padStart(2, '0')}.txt`,
     content: L.join('\r\n')
   };
 }
+
+// helper for "and others" pattern
+declare module './report-strings' {
+  interface ReportStrings {
+    andOthers: string;
+  }
+}
+

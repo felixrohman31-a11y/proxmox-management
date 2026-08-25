@@ -17,8 +17,8 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <div className="card flex items-center justify-between p-4">
           <div>
-            <p className="text-sm font-medium text-zinc-200">Language / Bahasa</p>
-            <p className="text-xs text-zinc-500">Choose the panel display language</p>
+            <p className="text-sm font-medium text-zinc-200">{L.settings.langTitle}</p>
+            <p className="text-xs text-zinc-500">{L.settings.langDesc}</p>
           </div>
           <LangToggle />
         </div>
