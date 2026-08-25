@@ -11,10 +11,15 @@ import { PveError } from '@/lib/pve';
 import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
 import { fmtBytes, fmtUptime, pct } from '@/lib/format';
+import { getServerLocale } from '@/lib/locale-server';
+import { serverT } from '@/lib/locale-server';
+import { fmt } from '@/lib/i18n-dict';
 
 export const dynamic = 'force-dynamic';
 
 export default async function OverviewPage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
+  const L = serverT();
+  const locale = getServerLocale();
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
   let error: string | null = null;
@@ -51,8 +56,8 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
   return (
     <>
       <PageHeader
-        title="Overview"
-        subtitle={cluster ? `Ringkasan resource cluster "${cluster.name}"` : 'Belum ada cluster terhubung'}
+        title={L.overview.title}
+        subtitle={cluster ? fmt(L.overview.subFor, { name: cluster.name }) + ` "${cluster.name}"` : 'Belum ada cluster terhubung'}
       >
         <ReportDownload clusterId={cluster?.id ?? ''} clusterName={cluster?.name} />
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard" />
@@ -90,18 +95,18 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
               icon={<ServerIcon className="h-5 w-5" />}
             />
             <StatCard
-              label="Guests"
+              label={L.overview.statGuests}
               value={`${runningCount}/${guests.length}`}
               sub={`${stoppedCount} stopped · ${templateCount} template`}
               icon={<CubeIcon className="h-5 w-5" />}
             />
-            <StatCard label="CPU" value={`${weightedCpu.toFixed(1)}%`} sub={`${totalCores.toFixed(0)} core`}>
+            <StatCard label={L.overview.statCpu} value={`${weightedCpu.toFixed(1)}%`} sub={`${totalCores.toFixed(0)} core`}>
               <Meter className="mt-3" value={weightedCpu} />
             </StatCard>
-            <StatCard label="Memori" value={fmtBytes(memSum)} sub={`dari ${fmtBytes(memMaxSum)}`}>
+            <StatCard label={L.overview.statMem} value={fmtBytes(memSum)} sub={`dari ${fmtBytes(memMaxSum)}`}>
               <Meter className="mt-3" value={pct(memSum, memMaxSum)} />
             </StatCard>
-            <StatCard label="Penyimpanan" value={fmtBytes(diskSum)} sub={`dari ${fmtBytes(diskMaxSum)}`}>
+            <StatCard label={L.overview.statStore} value={fmtBytes(diskSum)} sub={`dari ${fmtBytes(diskMaxSum)}`}>
               <Meter className="mt-3" value={pct(diskSum, diskMaxSum)} />
             </StatCard>
           </div>

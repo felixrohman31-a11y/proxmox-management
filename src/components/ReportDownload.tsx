@@ -1,14 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useL } from './lang-context';
 
-export default function ReportDownload({
-  clusterId,
-  clusterName
-}: {
-  clusterId: string;
-  clusterName?: string;
-}) {
+export default function ReportDownload({ clusterId, clusterName }: { clusterId: string; clusterName?: string }) {
+  const L = useL();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [scope, setScope] = useState<'aktif' | 'semua'>('aktif');
 
@@ -24,8 +20,8 @@ export default function ReportDownload({
       <div className="flex overflow-hidden rounded-lg border border-zinc-700 text-xs font-medium">
         {(
           [
-            ['aktif', clusterName ?? 'Cluster Aktif'],
-            ['semua', 'Semua Cluster']
+            ['aktif', scope === 'semua' ? L.report.scopeActive : clusterName ?? L.report.scopeActive],
+            ['semua', L.report.scopeAll]
           ] as const
         ).map(([val, label]) => (
           <button
@@ -33,7 +29,9 @@ export default function ReportDownload({
             type="button"
             onClick={() => setScope(val)}
             className={`px-2.5 py-1.5 transition ${
-              scope === val ? 'bg-orange-500/15 text-orange-400' : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'
+              scope === val
+                ? 'bg-orange-500/15 text-orange-400'
+                : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {label}
@@ -45,18 +43,18 @@ export default function ReportDownload({
         className="input w-auto"
         value={month}
         onChange={(e) => setMonth(e.target.value)}
-        aria-label="Periode laporan"
+        aria-label={L.report.ariaMonth}
       />
       <button
         type="button"
         className="btn-primary"
         onClick={() => download('html')}
-        title="Unduh laporan dengan grafik — buka di browser lalu cetak ke PDF"
+        title="Open in browser → print as PDF"
       >
-        {scope === 'semua' ? 'Laporan Gabungan' : 'Laporan + Grafik'}
+        {L.report.btn}
       </button>
-      <button type="button" className="btn-ghost" onClick={() => download('txt')} title="Unduh versi teks polos">
-        TXT
+      <button type="button" className="btn-ghost" onClick={() => download('txt')} title="Plain text">
+        {L.report.btnTxt}
       </button>
     </div>
   );

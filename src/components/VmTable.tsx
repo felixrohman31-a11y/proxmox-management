@@ -18,15 +18,10 @@ import {
 import type { ReactNode } from 'react';
 import type { ActiveTask, GuestRow } from '@/types';
 import { fmtBytes, fmtUptime, pct } from '@/lib/format';
+import { useL } from './lang-context';
+import { fmt } from '@/lib/i18n-dict';
 
 type ActionKind = 'start' | 'shutdown' | 'reboot' | 'stop';
-
-const ACTION_LABEL: Record<ActionKind, string> = {
-  start: 'Start',
-  shutdown: 'Shutdown',
-  reboot: 'Reboot',
-  stop: 'Force Stop'
-};
 
 interface Props {
   clusterId: string;
@@ -45,9 +40,7 @@ function Chip({ tone = 'default', children }: { tone?: 'default' | 'emerald' | '
 }
 
 function TypeBadge({ label, cls }: { label: string; cls: string }) {
-  return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>{label}</span>
-  );
+  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>{label}</span>;
 }
 
 function ActBtn({
@@ -81,8 +74,9 @@ function ActBtn({
   );
 }
 
-export default function VmTable({ clusterId, host, port, guests }: Props) {
+export default function VmTable({ clusterId, guests }: Props) {
   const router = useRouter();
+  const L = useL();
   const [q, setQ] = useState('');
   const [typeF, setTypeF] = useState('');
   const [statusF, setStatusF] = useState('');
@@ -90,6 +84,14 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
   const [busy, setBusy] = useState<string | null>(null);
   const [tasks, setTasks] = useState<ActiveTask[]>([]);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const ACTION_LABEL: Record<ActionKind, string> = {
+    start: L.vms.aStart,
+    shutdown: L.vms.aShutdown,
+    reboot: L.vms.aReboot,
+    stop: L.vms.aForceStop
+  };
 
   useEffect(() => {
     if (!toast) return;
@@ -115,16 +117,23 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
             .includes('OK');
           setToast(
             ok
-              ? { kind: 'ok', msg: `${ACTION_LABEL[t.action as ActionKind]} ${t.vmid} selesai — task OK.` }
+              ? {
+                  kind: 'ok',
+                  msg: fmt(L.vms.toastDone, { label: ACTION_LABEL[t.action as ActionKind], vmid: t.vmid })
+                }
               : {
                   kind: 'err',
-                  msg: `${ACTION_LABEL[t.action as ActionKind]} ${t.vmid} GAGAL: ${d.exitstatus ?? 'unknown error'}`
+                  msg: fmt(L.vms.toastFail, {
+                    label: ACTION_LABEL[t.action as ActionKind],
+                    vmid: t.vmid,
+                    err: d.exitstatus ?? '-'
+                  })
                 }
           );
           setTasks((cur) => cur.filter((x) => x.upid !== t.upid));
           router.refresh();
         } catch {
-          // biarkan dicoba lagi di tick berikutnya
+          // coba lagi di tick berikutnya
         }
       }
     }, 2500);
@@ -132,11 +141,81 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
       cancelled = true;
       clearInterval(iv);
     };
-  }, [tasks, clusterId, router]);
+  }, [tasks, clusterId, router, L]);
 
   const rowHasTask = (g: GuestRow) => tasks.some((t) => t.vmid === g.vmid);
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  async function act(g: GuestRow, action: ActionKind) {
+    if (
+      action === 'stop' &&
+      !window.confirm(
+        fmt(L.vms.confirmForce, {
+          k: g.type === 'qemu' ? L.vms.kindVM : L.vms.kindCT,
+          vmid: g.vmid,
+          name: g.name
+        })
+      )
+    ) {
+      return;
+    }
+    const key = `${g.vmid}:${action}`;
+    setBusy(key);
+    try {
+      const res = await fetch(
+        `/api/pve/${clusterId}/nodes/${encodeURIComponent(g.node)}/${g.type}/${g.vmid}/status/${action}`,
+        { method: 'POST' }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setToast({
+          kind: 'err',
+          msg:
+            json.error ??
+            fmt(L.vms.toastHttp, { action, code: res.status })
+        });
+      } else {
+        const upid =
+          typeof json.data === 'string' && json.data.startsWith('UPID:') ? json.data : null;
+        if (upid) {
+          setTasks((cur) => [...cur, { upid, node: g.node, vmid: g.vmid, action }]);
+          setToast({
+            kind: 'ok',
+            msg: fmt(L.vms.toastTask, { label: ACTION_LABEL[action], vmid: g.vmid })
+          });
+        } else {
+          setToast({ kind: 'ok', msg: fmt(L.vms.toastSent, { action, vmid: g.vmid }) });
+          router.refresh();
+        }
+      }
+    } catch {
+      setToast({ kind: 'err', msg: L.vms.errConnUpload });
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const nodeList = useMemo(() => Array.from(new Set(guests.map((g) => g.node))).sort(), [guests]);
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return guests.filter((g) => {
+      if (typeF && g.type !== typeF) return false;
+      if (statusF) {
+        if (statusF === 'template') {
+          if (!g.template) return false;
+        } else if (g.template || g.status !== statusF) return false;
+      }
+      if (nodeF && g.node !== nodeF) return false;
+      if (!needle) return true;
+      return (
+        String(g.vmid).includes(needle) ||
+        g.name.toLowerCase().includes(needle) ||
+        g.node.toLowerCase().includes(needle) ||
+        g.tags.some((t) => t.toLowerCase().includes(needle))
+      );
+    });
+  }, [guests, q, typeF, statusF, nodeF]);
+
   const selKey = (g: GuestRow) => `${g.type}-${g.vmid}-${g.node}`;
   const selectable = (g: GuestRow) =>
     !g.template && (g.status === 'running' || g.status === 'stopped');
@@ -173,7 +252,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
     );
     if (targets.length === 0) return;
     const label = ACTION_LABEL[action];
-    if (!window.confirm(`Jalankan ${label} untuk ${targets.length} guest terpilih?`)) return;
+    if (!window.confirm(fmt(L.vms.confirmBulk, { label, n: targets.length }))) return;
 
     setBusy(`bulk:${action}`);
     let sent = 0;
@@ -190,9 +269,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
         if (res.ok && upid) {
           setTasks((cur) => [...cur, { upid, node: g.node, vmid: g.vmid, action }]);
           sent++;
-        } else {
-          fail++;
-        }
+        } else fail++;
       } catch {
         fail++;
       }
@@ -201,78 +278,18 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
     setSelected(new Set());
     setToast({
       kind: fail > 0 ? 'err' : 'ok',
-      msg: `${label} massal: ${sent} task dikirim${fail > 0 ? `, ${fail} gagal` : ''}.`
+      msg: fmt(L.vms.bulkSent, { label, sent }) + (fail > 0 ? fmt(L.vms.bulkFailSuffix, { fail }) : '')
     });
     setTimeout(() => router.refresh(), 1500);
   }
-
-  const nodeList = useMemo(() => Array.from(new Set(guests.map((g) => g.node))).sort(), [guests]);
-
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return guests.filter((g) => {
-      if (typeF && g.type !== typeF) return false;
-      if (statusF) {
-        if (statusF === 'template') {
-          if (!g.template) return false;
-        } else if (g.template || g.status !== statusF) return false;
-      }
-      if (nodeF && g.node !== nodeF) return false;
-      if (!needle) return true;
-      return (
-        String(g.vmid).includes(needle) ||
-        g.name.toLowerCase().includes(needle) ||
-        g.node.toLowerCase().includes(needle) ||
-        g.tags.some((t) => t.toLowerCase().includes(needle))
-      );
-    });
-  }, [guests, q, typeF, statusF, nodeF]);
 
   const selectedGuests = useMemo(
     () => filtered.filter((g) => selected.has(selKey(g))),
     [filtered, selected]
   );
-
   const eligibleFiltered = filtered.filter(selectable);
   const allFilteredSelected =
     eligibleFiltered.length > 0 && eligibleFiltered.every((g) => selected.has(selKey(g)));
-
-  async function act(g: GuestRow, action: ActionKind) {
-    if (
-      action === 'stop' &&
-      !window.confirm(
-        `Force stop ${g.type === 'qemu' ? 'VM' : 'CT'} ${g.vmid} (${g.name})?\nData yang belum tersimpan bisa hilang.`
-      )
-    ) {
-      return;
-    }
-    const key = `${g.vmid}:${action}`;
-    setBusy(key);
-    try {
-      const res = await fetch(
-        `/api/pve/${clusterId}/nodes/${encodeURIComponent(g.node)}/${g.type}/${g.vmid}/status/${action}`,
-        { method: 'POST' }
-      );
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setToast({ kind: 'err', msg: json.error ?? `Perintah ${action} gagal (HTTP ${res.status}).` });
-      } else {
-        const upid =
-          typeof json.data === 'string' && json.data.startsWith('UPID:') ? json.data : null;
-        if (upid) {
-          setTasks((cur) => [...cur, { upid, node: g.node, vmid: g.vmid, action }]);
-          setToast({ kind: 'ok', msg: `${ACTION_LABEL[action]} ${g.vmid} — task berjalan, memantau status…` });
-        } else {
-          setToast({ kind: 'ok', msg: `Perintah ${action} untuk ${g.vmid} dikirim.` });
-          router.refresh();
-        }
-      }
-    } catch (e) {
-      setToast({ kind: 'err', msg: (e as Error).message });
-    } finally {
-      setBusy(null);
-    }
-  }
 
   function consoleUrl(g: GuestRow): string {
     return `/dashboard/console?c=${clusterId}&node=${encodeURIComponent(g.node)}&type=${g.type}&vmid=${g.vmid}&name=${encodeURIComponent(g.name)}`;
@@ -286,9 +303,15 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 text-xs">
         <Chip>Total {guests.length}</Chip>
-        <Chip tone="emerald">Running {runningCount}</Chip>
-        <Chip>Stopped {stoppedCount}</Chip>
-        <Chip tone="amber">Template {templateCount}</Chip>
+        <Chip tone="emerald">
+          {L.vms.stRunning} {runningCount}
+        </Chip>
+        <Chip>
+          {L.vms.stStopped} {stoppedCount}
+        </Chip>
+        <Chip tone="amber">
+          {L.vms.stTemplate} {templateCount}
+        </Chip>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -297,24 +320,24 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari nama, VMID, node, tag…"
+            placeholder={L.vms.search}
             className="input w-64 pl-8"
           />
         </div>
         <select className="input w-auto" value={typeF} onChange={(e) => setTypeF(e.target.value)}>
-          <option value="">Semua tipe</option>
-          <option value="qemu">VM (qemu)</option>
-          <option value="lxc">Container (lxc)</option>
+          <option value="">{L.vms.allTypes}</option>
+          <option value="qemu">{L.vms.vmq}</option>
+          <option value="lxc">{L.vms.ctq}</option>
         </select>
         <select className="input w-auto" value={statusF} onChange={(e) => setStatusF(e.target.value)}>
-          <option value="">Semua status</option>
-          <option value="running">Running</option>
-          <option value="stopped">Stopped</option>
-          <option value="paused">Paused</option>
-          <option value="template">Template</option>
+          <option value="">{L.vms.allStatus}</option>
+          <option value="running">{L.vms.stRunning}</option>
+          <option value="stopped">{L.vms.stStopped}</option>
+          <option value="paused">{L.vms.stPaused}</option>
+          <option value="template">{L.vms.stTemplate}</option>
         </select>
         <select className="input w-auto" value={nodeF} onChange={(e) => setNodeF(e.target.value)}>
-          <option value="">Semua node</option>
+          <option value="">{L.vms.allNodes}</option>
           {nodeList.map((n) => (
             <option key={n} value={n}>
               {n}
@@ -325,19 +348,29 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
 
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-800/50 bg-orange-500/5 p-3 text-sm">
-          <span className="font-medium text-zinc-200">{selected.size} dipilih</span>
+          <span className="font-medium text-zinc-200">{fmt(L.vms.selN, { n: selected.size })}</span>
           {selectedGuests.some((g) => g.status === 'stopped') && (
-            <button type="button" className="btn-primary" disabled={Boolean(busy) || tasks.length > 0} onClick={() => bulkRun('start')}>
-              Start Terpilih
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={Boolean(busy) || tasks.length > 0}
+              onClick={() => bulkRun('start')}
+            >
+              {L.vms.bulkStart}
             </button>
           )}
           {selectedGuests.some((g) => g.status === 'running') && (
-            <button type="button" className="btn-danger" disabled={Boolean(busy) || tasks.length > 0} onClick={() => bulkRun('shutdown')}>
-              Shutdown Terpilih
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={Boolean(busy) || tasks.length > 0}
+              onClick={() => bulkRun('shutdown')}
+            >
+              {L.vms.bulkShutdown}
             </button>
           )}
           <button type="button" className="btn-ghost" onClick={() => setSelected(new Set())}>
-            Bersihkan
+            {L.vms.clear}
           </button>
         </div>
       )}
@@ -356,16 +389,16 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                     className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
                   />
                 </Th>
-                <Th>VMID</Th>
-                <Th>Nama</Th>
-                <Th>Tipe</Th>
-                <Th>Node</Th>
-                <Th>Status</Th>
-                <Th>CPU</Th>
-                <Th className="min-w-[8rem]">Memori</Th>
-                <Th className="min-w-[9rem]">Disk</Th>
-                <Th>Uptime</Th>
-                <Th className="text-right">Aksi</Th>
+                <Th>{L.vms.colId}</Th>
+                <Th>{L.vms.colName}</Th>
+                <Th>{L.vms.colType}</Th>
+                <Th>{L.vms.colNode}</Th>
+                <Th>{L.vms.colStatus}</Th>
+                <Th>{L.vms.colCpu}</Th>
+                <Th className="min-w-[8rem]">{L.vms.colMem}</Th>
+                <Th className="min-w-[9rem]">{L.vms.colDisk}</Th>
+                <Th>{L.vms.colUptime}</Th>
+                <Th className="text-right">{L.vms.colAct}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/70">
@@ -428,7 +461,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                     <div className="flex items-center justify-end gap-1">
                       {!g.template && g.status === 'stopped' && (
                         <ActBtn
-                          title="Start"
+                          title={L.vms.aStart}
                           tone="emerald"
                           busy={busy === `${g.vmid}:start` || rowHasTask(g)}
                           onClick={() => act(g, 'start')}
@@ -439,7 +472,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                       {!g.template && g.status === 'running' && (
                         <>
                           <ActBtn
-                            title="Reboot"
+                            title={L.vms.aReboot}
                             tone="ghost"
                             busy={busy === `${g.vmid}:reboot` || rowHasTask(g)}
                             onClick={() => act(g, 'reboot')}
@@ -447,7 +480,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                             <RotateIcon />
                           </ActBtn>
                           <ActBtn
-                            title="Shutdown"
+                            title={L.vms.aShutdown}
                             tone="ghost"
                             busy={busy === `${g.vmid}:shutdown` || rowHasTask(g)}
                             onClick={() => act(g, 'shutdown')}
@@ -455,7 +488,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                             <PowerIcon />
                           </ActBtn>
                           <ActBtn
-                            title="Force Stop"
+                            title={L.vms.aForceStop}
                             tone="red"
                             busy={busy === `${g.vmid}:stop` || rowHasTask(g)}
                             onClick={() => act(g, 'stop')}
@@ -468,7 +501,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                         href={`/dashboard/graphs?c=${clusterId}&t=guest&g=${encodeURIComponent(
                           `${g.type}|${g.vmid}|${g.node}`
                         )}&tf=day`}
-                        title="Grafik monitoring"
+                        title={L.vms.graphT}
                         className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
                       >
                         <ChartIcon />
@@ -477,7 +510,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
                         href={consoleUrl(g)}
                         target="_blank"
                         rel="noreferrer"
-                        title="Buka konsol noVNC (via web Proxmox)"
+                        title={L.vms.consT}
                         className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
                       >
                         <ExternalIcon />
@@ -489,7 +522,7 @@ export default function VmTable({ clusterId, host, port, guests }: Props) {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={11} className="px-4 py-10 text-center text-sm text-zinc-500">
-                    Tidak ada guest yang cocok dengan filter.
+                    {L.vms.noMatch}
                   </td>
                 </tr>
               )}
