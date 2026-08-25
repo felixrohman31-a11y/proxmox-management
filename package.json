@@ -26,5 +26,12 @@
     "postcss": "^8.4.41",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.5.4"
-  }
+  },
+  "license": "MIT",
+  "author": "felixrohman31-a11y",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/felixrohman31-a11y/proxmox-management.git"
+  },
+  "homepage": "https://github.com/felixrohman31-a11y/proxmox-management#readme"
 }

@@ -2,7 +2,7 @@
 
 [English](#english) | [Bahasa Indonesia](#bahasa-indonesia)
 
-![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![i18n](https://img.shields.io/badge/i18n-ID_&_EN-blue)
+![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![i18n](https://img.shields.io/badge/i18n-ID_&_EN-blue) ![license](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -239,6 +239,17 @@ Atau API token:
 ```bash
 pveum user token add proxmox-management@pve panel -privsep 0
 ```
+
+---
+
+
+---
+
+## 📄 License & Author
+
+This project is licensed under the **MIT License** — free to use, modify, and distribute.
+
+**Author:** [felixrohman31-a11y](https://github.com/felixrohman31-a11y)
 
 ---
 
