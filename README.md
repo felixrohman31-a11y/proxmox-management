@@ -77,8 +77,8 @@ apt install -y nodejs
 ## 2. Ambil Kode & Build
 
 ```bash
-git clone https://github.com/felixrohman31-a11y/proxcenter.git /opt/proxcenter
-cd /opt/proxcenter
+git clone https://github.com/felixrohman31-a11y/proxmox-management.git /opt/proxmox-management
+cd /opt/proxmox-management
 npm install --no-audit --no-fund
 ```
 
@@ -110,14 +110,14 @@ Uji cepat: `npm start` lalu buka `http://<ip>:3000/login` — Ctrl+C setelah yak
 ## 5. Service systemd
 
 ```bash
-cat > /etc/systemd/system/proxcenter.service <<'EOF'
+cat > /etc/systemd/system/proxmox-management.service <<'EOF'
 [Unit]
 Description=Proxmox Management - Proxmox multi-cluster panel
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/proxcenter
+WorkingDirectory=/opt/proxmox-management
 Environment=NODE_ENV=production
 Environment=PORT=3000
 ExecStart=/usr/bin/npm start
@@ -129,8 +129,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now proxcenter
-systemctl is-active proxcenter
+systemctl enable --now proxmox-management
+systemctl is-active proxmox-management
 ```
 
 > `ADMIN_PASSWORD` juga bisa didefinisikan sebagai `Environment=...`
@@ -144,15 +144,15 @@ Sertifikat self-signed (ganti dengan Let's Encrypt bila domain tersedia):
 ```bash
 mkdir -p /etc/nginx/ssl
 openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-  -keyout /etc/nginx/ssl/proxcenter.key \
-  -out  /etc/nginx/ssl/proxcenter.crt \
+  -keyout /etc/nginx/ssl/proxmox-management.key \
+  -out  /etc/nginx/ssl/proxmox-management.crt \
   -subj "/CN=$(hostname -I | awk '{print $1}')"
 ```
 
 Config site:
 
 ```bash
-cat > /etc/nginx/sites-available/proxcenter <<'EOF'
+cat > /etc/nginx/sites-available/proxmox-management <<'EOF'
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -165,8 +165,8 @@ server {
     listen [::]:443 ssl default_server;
     server_name _;
 
-    ssl_certificate     /etc/nginx/ssl/proxcenter.crt;
-    ssl_certificate_key /etc/nginx/ssl/proxcenter.key;
+    ssl_certificate     /etc/nginx/ssl/proxmox-management.crt;
+    ssl_certificate_key /etc/nginx/ssl/proxmox-management.key;
 
     add_header Strict-Transport-Security "max-age=31536000" always;
     add_header X-Frame-Options DENY always;
@@ -185,7 +185,7 @@ server {
 EOF
 
 rm -f /etc/nginx/sites-enabled/default
-ln -sf /etc/nginx/sites-available/proxcenter /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/proxmox-management /etc/nginx/sites-enabled/
 nginx -t && systemctl restart nginx
 ```
 
@@ -196,11 +196,11 @@ Panel kini dapat diakses di `http(s)://<ip-server>`.
 ## 🔁 Prosedur Update
 
 ```bash
-cd /opt/proxcenter
+cd /opt/proxmox-management
 git pull
 npm install --no-audit --no-fund
 npm run build
-systemctl restart proxcenter
+systemctl restart proxmox-management
 ```
 
 Data (`data/`) tidak terpengaruh oleh update.
@@ -213,9 +213,9 @@ Backup bisa dibuat otomatis dari menu **Pengaturan → Backup FTP**
 Restore di mesin baru:
 
 ```bash
-systemctl stop proxcenter
-# ekstrak field "files" dari bundle backup ke /opt/proxcenter/data/
-systemctl start proxcenter
+systemctl stop proxmox-management
+# ekstrak field "files" dari bundle backup ke /opt/proxmox-management/data/
+systemctl start proxmox-management
 ```
 
 > `.secret` wajib dipasangkan dengan `clusters.json` yang sama — jangan
@@ -231,14 +231,14 @@ systemctl start proxcenter
 Rekomendasi user khusus (alih-alih root):
 
 ```bash
-pveum user add proxcenter@pve --comment "Proxmox Management"
-pveum aclmod / -users proxcenter@pve -roles Administrator
+pveum user add proxmox-management@pve --comment "Proxmox Management"
+pveum aclmod / -users proxmox-management@pve -roles Administrator
 ```
 
 Atau API token:
 
 ```bash
-pveum user token add proxcenter@pve panel -privsep 0
+pveum user token add proxmox-management@pve panel -privsep 0
 ```
 
 ---

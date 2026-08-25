@@ -1,5 +1,5 @@
 {
-  "name": "proxcenter",
+  "name": "proxmox-management",
   "version": "0.1.0",
   "private": true,
   "engines": {
