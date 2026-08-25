@@ -1,80 +1,69 @@
 # Proxmox Management
 
-Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js 14 + Tailwind CSS.
+[English](#english) | [Bahasa Indonesia](#bahasa-indonesia)
 
-![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![lang](https://img.shields.io/badge/bahasa-ID-orange)
+![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![i18n](https://img.shields.io/badge/i18n-ID_&_EN-blue)
 
-## Fitur
+---
 
-### Manajemen Cluster
-- **Multi-cluster dinamis** — tambah/hapus/edit koneksi dari UI, dua metode auth: `User & Password` atau `API Token` (`PVEAPIToken=user@realm!tokenid=secret`)
-- Kredensial disimpan **terenkripsi AES-256-GCM**; semua trafik PVE melewati proxy internal (kredensial tidak pernah menyentuh browser)
+## English
 
-### Monitoring & Operasional
-- **Overview** — status node, agregasi CPU/RAM/disk, Task Center dengan pemantauan task UPID live
-- **Virtual Machines** — daftar VM/CT lintas node + filter, aksi Start/Shutdown/Reboot/Force Stop per guest, **Bulk Action** (pilih banyak → start/shutdown massal), konsol noVNC lewat alur login aman
-- **Buat Guest** — CT dari template LXC, atau VM via **ISO** (unggah file ISO lokal ≤512 MB, unduh ISO dari URL secara server-side, atau clone template + cloud-init opsional)
-- **Backup VM/CT** — jalankan vzdump (mode snapshot/suspend/stop, kompresi zstd/lzo/gzip), kelola & hapus file dump
-- **Grafik Monitoring RRD** — riwayat CPU/Memori/Network/Disk IO per node & guest (rentang jam–tahun); guest mati ditampilkan panel pemberitahuan
+A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind CSS.
 
-### Pelaporan
-- **Laporan Bulanan** — cakupan **per cluster** atau **gabungan seluruh cluster**
-  - Format **HTML mandiri dengan grafik SVG** (siap dicetak/simpan PDF) atau TXT polos
-  - Bahasa eksekutif untuk pimpinan: ringkasan kondisi, kapasitas berkategori Aman/Waspada/Kritis, catatan kejadian, rekomendasi tindak lanjut otomatis
+### Features
 
-### Administrasi
-- **Audit Log** — login (sukses/gagal + IP), CRUD cluster, dan setiap aksi mutasi ke PVE tercatat otomatis; tabel interaktif di menu Pengaturan
-- **Notifikasi WhatsApp/Telegram** — peringatan otomatis saat guest terdeteksi mati (monitor tiap 5 menit); mendukung **Fonnte**, **CallMeBot**, dan **Telegram Bot**
-- **Backup konfigurasi panel ke FTP** — bundle `clusters.json` + kunci enkripsi + settings, dengan tes koneksi dan opsi harian otomatis (beta)
+#### Cluster Management
+- **Dynamic multi-cluster** — add/remove/edit connections from the UI
+- Two auth methods: `User & Password` or `API Token`
+- Credentials stored encrypted with **AES-256-GCM**
 
-### Keamanan
-- Rate-limit login (lockout 5 menit setelah 5 gagal) + verifikasi constant-time
-- Cookie session `HttpOnly` + `Secure` + HMAC-SHA256 (7 hari)
-- Contoh nginx menyertakan redirect HTTP→HTTPS & HSTS
+#### Monitoring & Operations
+- **Overview** — node status, resource aggregation, Task Center with live UPID monitoring
+- **Virtual Machines** — cross-node VM/CT list with filters, Start/Shutdown/Reboot/Force Stop per guest, **Bulk Actions**, noVNC console via safe login flow
+- **Create Guest** — CT from LXC template, VM via ISO (upload ≤512 MB, download from URL server-side), or clone template + cloud-init
+- **VM/CT Backup** — vzdump (snapshot/suspend/stop mode, zstd/lzo/gzip), manage dump files
+- **Monitoring Graphs** — RRD history: CPU/Memory/Network/Disk IO per node & guest (hour–year)
 
-## Arsitektur Singkat
+#### Reporting
+- **Monthly Report** — per cluster or consolidated across all clusters
+  - Self-contained HTML with inline SVG charts (print-ready PDF) and plain TXT
+  - Executive summary language + automatic follow-up recommendations
+
+#### Administration
+- **Audit Log** — logins, cluster CRUD, all PVE mutations recorded automatically
+- **Notifications** — WhatsApp/Telegram alerts when a guest goes down (Fonnte / CallMeBot / Telegram Bot)
+- **FTP Config Backup** — panel configuration bundle with connection test & auto-daily option
+
+### Security
+- Login rate-limiting (lockout after 5 failures) + constant-time comparison
+- Session cookie `HttpOnly` + `Secure` + HMAC-SHA256 (7 days)
+- Nginx HTTP→HTTPS redirect + HSTS
+
+### Architecture
 
 ```
 Browser ──> Next.js (UI + API Routes) ──HTTPS──> Proxmox VE API (port 8006)
                  │
-                 ├─ data/clusters.json   (kredensial terenkripsi)
-                 ├─ data/.secret         (kunci enkripsi, dibuat otomatis)
-                 ├─ data/settings.json   (FTP/WA/notifikasi)
-                 └─ data/audit.log       (jejak audit JSONL)
+                 ├─ data/clusters.json   (encrypted credentials)
+                 ├─ data/.secret         (encryption key, auto-generated)
+                 └─ data/audit.log       (JSONL audit trail)
 ```
 
 ---
 
-# 🚀 Deploy di Linux
+## 🚀 Deploy on Linux
 
-Tested pada **Debian 11/12** (LXC maupun VM). Prinsipnya sama untuk Ubuntu.
+Tested on **Debian 11/12** (LXC or VM).
 
-## 1. Persiapan Server
-
-```bash
-apt update
-apt install -y curl git nginx
-```
-
-> Untuk container LXC: gunakan template Debian 12, unprivileged, minimal
-> 1 core / 1 GB RAM / 8 GB disk.
-
-Instalasi Node.js:
+### 1. Dependencies
 
 ```bash
-# Debian 12 → Node 18 langsung dari repo (memadai untuk Next 14)
-apt install -y nodejs npm
-node -v   # harus >= 18.17
+apt update && apt install -y curl git nginx
+apt install -y nodejs npm   # Debian 12 → Node 18 ✓
+node -v                     # >= 18.17
 ```
 
-Jika butuh Node lebih baru (mis. Debian 11):
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-```
-
-## 2. Ambil Kode & Build
+### 2. Clone & Build
 
 ```bash
 git clone https://github.com/felixrohman31-a11y/proxmox-management.git /opt/proxmox-management
@@ -82,37 +71,35 @@ cd /opt/proxmox-management
 npm install --no-audit --no-fund
 ```
 
-## 3. Konfigurasi Environment
+### 3. Environment
 
 ```bash
 cat > .env.local <<'EOF'
 ADMIN_USER=admin
-ADMIN_PASSWORD=GantiDenganPasswordKuat
-APP_SECRET=bebas-minimal-16-karakter-acak
+ADMIN_PASSWORD=ChangeThisStrongPassword
+APP_SECRET=random-min-16-chars
 EOF
 chmod 600 .env.local
 ```
 
-| Var | Default | Keterangan |
+| Variable | Default | Description |
 |---|---|---|
-| `ADMIN_USER` | `admin` | username login panel |
-| `ADMIN_PASSWORD` | `admin123` | password login panel (**wajib diganti**) |
-| `APP_SECRET` | acak (`data/.secret`) | key signing session (ops., min 16 karakter) |
+| `ADMIN_USER` | `admin` | Panel login username |
+| `ADMIN_PASSWORD` | `admin123` | Panel login password (**must change**) |
+| `APP_SECRET` | random (`data/.secret`) | Session signing key |
 
-## 4. Build
+### 4. Build
 
 ```bash
 npm run build
 ```
 
-Uji cepat: `npm start` lalu buka `http://<ip>:3000/login` — Ctrl+C setelah yakin.
-
-## 5. Service systemd
+### 5. Systemd Service
 
 ```bash
 cat > /etc/systemd/system/proxmox-management.service <<'EOF'
 [Unit]
-Description=Proxmox Management - Proxmox multi-cluster panel
+Description=Proxmox Management - multi-cluster panel
 After=network.target
 
 [Service]
@@ -130,56 +117,32 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now proxmox-management
-systemctl is-active proxmox-management
 ```
 
-> `ADMIN_PASSWORD` juga bisa didefinisikan sebagai `Environment=...`
-> di unit file ini (seperti contoh deployment internal) — pilih salah satu
-> sumber: `.env.local` **atau** unit file.
-
-## 6. Nginx Reverse Proxy + HTTPS
-
-Sertifikat self-signed (ganti dengan Let's Encrypt bila domain tersedia):
+### 6. Nginx Reverse Proxy + HTTPS
 
 ```bash
 mkdir -p /etc/nginx/ssl
 openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-  -keyout /etc/nginx/ssl/proxmox-management.key \
-  -out  /etc/nginx/ssl/proxmox-management.crt \
+  -keyout /etc/nginx/ssl/proxcenter.key \
+  -out  /etc/nginx/ssl/proxcenter.crt \
   -subj "/CN=$(hostname -I | awk '{print $1}')"
-```
 
-Config site:
-
-```bash
 cat > /etc/nginx/sites-available/proxmox-management <<'EOF'
 server {
     listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
     return 301 https://$host$request_uri;
 }
-
 server {
     listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    server_name _;
-
-    ssl_certificate     /etc/nginx/ssl/proxmox-management.crt;
-    ssl_certificate_key /etc/nginx/ssl/proxmox-management.key;
-
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    add_header X-Frame-Options DENY always;
-    add_header X-Content-Type-Options nosniff always;
-
+    ssl_certificate /etc/nginx/ssl/proxcenter.crt;
+    ssl_certificate_key /etc/nginx/ssl/proxcenter.key;
+    client_max_body_size 0;
     location / {
         proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
     }
 }
 EOF
@@ -189,49 +152,85 @@ ln -sf /etc/nginx/sites-available/proxmox-management /etc/nginx/sites-enabled/
 nginx -t && systemctl restart nginx
 ```
 
-Panel kini dapat diakses di `http(s)://<ip-server>`.
+Panel accessible at `https://<server-ip>`.
+
+### Updating
+
+```bash
+cd /opt/proxmox-management && git pull && npm install && npm run build && systemctl restart proxmox-management
+```
+
+### Adding a Proxmox Cluster
+
+Recommended dedicated user:
+
+```bash
+pveum user add proxmox-management@pve
+pveum aclmod / -users proxmox-management@pve -roles Administrator
+```
+
+Or API token:
+
+```bash
+pveum user token add proxmox-management@pve panel -privsep 0
+```
+
+### Project Structure
+
+```
+src/
+├── app/api/         # auth, clusters, PVE proxy, meta, reports, settings, upload, audit
+├── app/dashboard/   # overview, vms, create, backup, graphs, clusters, settings, console
+├── components/      # tables, forms, charts, panels
+├── lib/             # pve client, i18n, session, encrypted store, reports
+└── types.ts
+```
+
+## Roadmap
+
+- [ ] Multi-user panel + RBAC
+- [ ] Restore VM/CT directly from dump files
+- [ ] Per-guest custom monitoring windows
 
 ---
 
-## 🔁 Prosedur Update
+## Bahasa Indonesia
+
+Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js 14 + Tailwind CSS.
+
+### Fitur
+
+**Manajemen Cluster**
+- Multi-cluster dinamis dengan auth User & Password atau API Token
+- Kredensial terenkripsi AES-256-GCM
+
+**Monitoring & Operasional**
+- Overview + Task Center pemantauan UPID live
+- Daftar VM/CT dengan filter & Bulk Action start/shutdown massal
+- Buat Guest: CT dari template, VM via ISO (unggah lokal / unduh URL / clone)
+- Backup VM/CT via vzdump + kelola file dump
+- Grafik Monitoring RRD per node & guest
+
+**Pelaporan**
+- Laporan Bulanan per cluster atau gabungan seluruh cluster
+- Format HTML dengan grafik SVG (cetak ke PDF) atau TXT
+- Bahasa eksekutif untuk pimpinan + rekomendasi otomatis
+
+**Administrasi**
+- Audit Log otomatis
+- Notifikasi WhatsApp/Telegram saat guest mati
+- Backup konfigurasi panel ke FTP
+
+**Keamanan**: rate-limit login, cookie Secure/HMAC-SHA256, enkripsi AES-256-GCM, HSTS
+
+### Deploy
+
+Panduan lengkap ada di bagian [Deploy on Linux](#-deploy-on-linux) di atas.
+
+### Menambah Cluster
 
 ```bash
-cd /opt/proxmox-management
-git pull
-npm install --no-audit --no-fund
-npm run build
-systemctl restart proxmox-management
-```
-
-Data (`data/`) tidak terpengaruh oleh update.
-
-## 💾 Backup & Restore Konfigurasi
-
-Backup bisa dibuat otomatis dari menu **Pengaturan → Backup FTP**
-(menghasilkan satu file JSON berisi `clusters.json`, `.secret`, `settings.json`).
-
-Restore di mesin baru:
-
-```bash
-systemctl stop proxmox-management
-# ekstrak field "files" dari bundle backup ke /opt/proxmox-management/data/
-systemctl start proxmox-management
-```
-
-> `.secret` wajib dipasangkan dengan `clusters.json` yang sama — jangan
-> dicampur antar instalasi. Lindungi file backup karena berisi kunci.
-
----
-
-## ➕ Menambah Cluster Proxmox
-
-1. Login panel → menu **Clusters** → *Tambah Cluster*
-2. Pilih metode auth (password atau API token), isi host/port/user, tes koneksi
-
-Rekomendasi user khusus (alih-alih root):
-
-```bash
-pveum user add proxmox-management@pve --comment "Proxmox Management"
+pveum user add proxmox-management@pve
 pveum aclmod / -users proxmox-management@pve -roles Administrator
 ```
 
@@ -243,44 +242,15 @@ pveum user token add proxmox-management@pve panel -privsep 0
 
 ---
 
-## 🗂️ Struktur Proyek
+## 💝 Support / Dukungan
 
-```
-src/
-├── app/
-│   ├── api/            # auth, clusters, proxy PVE (GET/POST/PUT/DELETE),
-│   │                   # meta, reports, settings, upload, audit
-│   ├── dashboard/      # overview, vms, create, backup, graphs,
-│   │                   # clusters, settings, console
-│   └── login/
-├── components/         # tabel VM, form cluster/guest, charts, panels
-├── lib/                # pve client, session, store terenkripsi,
-│                       # report generator, ftp-backup, monitor, audit
-└── types.ts
-```
+If you find this project useful, donations are appreciated!
+Jika Proxmox Management bermanfaat, dukungan donasi sangat membantu.
 
-## Roadmap
-
-- [x] Backup VM/CT (vzdump) dari panel + kelola file dump
-- [x] Notifikasi WhatsApp/Telegram saat guest down
-- [x] UI tabel audit log di menu Pengaturan
-- [x] Upload ISO dari komputer lokal (≤512 MB)
-- [ ] Multi-user panel + RBAC
-- [ ] Restore VM/CT langsung dari file dump
-- [ ] Grafik monitoring per guest dengan jendela kustom
-
----
-
-## 💝 Dukung Pengembangan
-
-Jika Proxmox Management bermanfaat untuk infrastruktur Anda, dukungan donasi
-sangat membantu keberlanjutan pengembangan fitur berikutnya.
-
-**Donate Crypto — BNB Chain (BEP-20):**
+**BNB Chain (BEP-20):**
 
 ```
 0x4649b364523D4DdC329583E218f20d52b2997367
 ```
 
-> Wallet BNB Smart Chain — juga menerima token BEP-20 lainnya
-> (USDT, USDC, dll). Terima kasih atas dukungannya! 🙏
+Thank you / Terima kasih! 🙏
