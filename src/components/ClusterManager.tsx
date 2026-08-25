@@ -199,7 +199,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
       {showForm && (
         <form onSubmit={save} className="card p-5">
           <h2 className="mb-4 text-sm font-semibold text-zinc-200">
-            {form.id ? '{L.clusters.formEdit}' : '{L.clusters.formNew}'}
+            {form.id ? L.clusters.formEdit : L.clusters.formNew}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>

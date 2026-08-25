@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
+import { useL } from './lang-context';
 
 type Provider = 'fonnte' | 'telegram';
 
@@ -28,6 +29,7 @@ const PROVIDER_INFO: Record<Provider, { label: string; hint: React.ReactNode }> 
 };
 
 export default function WaPanel() {
+  const L = useL();
   const [loaded, setLoaded] = useState(false);
   const [provider, setProvider] = useState<Provider>('telegram');
   const [phone, setPhone] = useState('');
@@ -106,7 +108,7 @@ export default function WaPanel() {
       }}
       className="card p-5"
     >
-      <h2 className="text-sm font-semibold text-zinc-200">Notifikasi (WhatsApp / Telegram)</h2>
+      <h2 className="text-sm font-semibold text-zinc-200">{L.wa.title}</h2>
       <p className="mt-1 mb-4 text-xs leading-relaxed text-zinc-500">
         Panel mengirim peringatan otomatis saat guest terdeteksi mati (pemeriksaan tiap 5 menit). Pilih salah satu
         layanan pengiriman.
@@ -136,7 +138,7 @@ export default function WaPanel() {
       <div className="grid gap-4 sm:grid-cols-2">
         {provider !== 'telegram' && (
           <div>
-            <label className="label">Nomor WA Tujuan (internasional)</label>
+            <label className="label">{L.wa.phone}</label>
             <input
               className="input"
               value={phone}
@@ -165,7 +167,7 @@ export default function WaPanel() {
           <>
             <div>
               <label className="label">
-                Bot Token {loaded && <span className="normal-case text-zinc-600">(kosongkan jika tetap)</span>}
+                {L.wa.botToken} {loaded && <span className="normal-case text-zinc-600">(kosongkan jika tetap)</span>}
               </label>
               <input
                 type="password"
@@ -177,7 +179,7 @@ export default function WaPanel() {
               />
             </div>
             <div>
-              <label className="label">Chat ID / Channel</label>
+              <label className="label">{L.wa.chatId}</label>
               <input className="input" value={chatId} onChange={(e) => setChatId(e.target.value)} placeholder="123456789" />
             </div>
           </>

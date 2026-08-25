@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
+import { useL } from './lang-context';
 import type { PublicCluster } from '@/types';
 
 interface FtpSettingsView {
@@ -22,6 +23,7 @@ interface BackupState {
 }
 
 export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[] }) {
+  const L = useL();
   const [loaded, setLoaded] = useState(false);
   const [host, setHost] = useState('');
   const [port, setPort] = useState('21');
@@ -57,7 +59,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
 
   async function save() {
     if (!host.trim() || !username.trim()) {
-      setMsg({ kind: 'err', text: 'Host dan username wajib diisi.' });
+      setMsg({ kind: 'err', text: '{L.ftp.errHostUser}' });
       return;
     }
     setBusy('save');
@@ -74,7 +76,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
       const r = await fetch('/api/settings/ftp', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setMsg({ kind: 'err', text: j.error ?? 'Gagal menyimpan.' });
-      else setMsg({ kind: 'ok', text: 'Pengaturan FTP tersimpan.' });
+      else setMsg({ kind: 'ok', text: '{L.ftp.saved}' });
       setPassword('');
       await load();
     } finally {
@@ -102,7 +104,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
   return (
     <div className="space-y-5">
       <form onSubmit={(e) => { e.preventDefault(); save(); }} className="card p-5">
-        <h2 className="mb-1 text-sm font-semibold text-zinc-200">Backup Konfigurasi ke FTP</h2>
+        <h2 className="mb-1 text-sm font-semibold text-zinc-200">{L.ftp.title}</h2>
         <p className="mb-4 text-xs leading-relaxed text-zinc-500">
           Mengirim salinan konfigurasi panel (daftar cluster &amp; kredensial terenkripsi + kunci) ke server FTP.
           Simpan arsip di lokasi yang aman — berisi kunci dekripsi.
@@ -125,15 +127,15 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="label">Host FTP</label>
+            <label className="label">{L.ftp.fHost}</label>
             <input className="input" value={host} onChange={(e) => setHost(e.target.value)} placeholder="192.0.2.10" />
           </div>
           <div>
-            <label className="label">Port</label>
+            <label className="label">{L.ftp.fPort}</label>
             <input className="input" value={port} onChange={(e) => setPort(e.target.value)} placeholder="21" />
           </div>
           <div>
-            <label className="label">Username</label>
+            <label className="label">{L.ftp.fUser}</label>
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div>
@@ -148,17 +150,17 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
             />
           </div>
           <div>
-            <label className="label">Direktori Tujuan</label>
+            <label className="label">{L.ftp.fDir}</label>
             <input className="input" value={directory} onChange={(e) => setDirectory(e.target.value)} />
           </div>
           <div className="flex flex-col justify-end gap-2 pb-1">
             <label className="flex items-center gap-2 text-sm text-zinc-400">
               <input type="checkbox" checked={passive} onChange={(e) => setPassive(e.target.checked)} className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-orange-600" />
-              Mode pasif
+              {L.ftp.passive}
             </label>
             <label className="flex items-center gap-2 text-sm text-zinc-400">
               <input type="checkbox" checked={autoDaily} onChange={(e) => setAutoDaily(e.target.checked)} className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-orange-600" />
-              Backup harian otomatis (beta)
+              {L.ftp.auto}
             </label>
           </div>
         </div>
@@ -171,21 +173,21 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="submit" disabled={Boolean(busy)} className="btn-primary">
-            {busy === 'save' && <RefreshIcon className="h-4 w-4 animate-spin" />} Simpan Pengaturan
+            {busy === 'save' && <RefreshIcon className="h-4 w-4 animate-spin" />} {L.ftp.btnSave}
           </button>
           <button type="button" className="btn-ghost" onClick={() => action('test')} disabled={Boolean(busy)}>
-            {busy === 'test' ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <BoltIcon />} Tes Koneksi
+            {busy === 'test' ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <BoltIcon />} {L.ftp.btnTest}
           </button>
           <button type="button" className="btn-danger" onClick={() => action('run')} disabled={Boolean(busy)}>
-            {busy === 'run' ? <RefreshIcon className="h-4 w-4 animate-spin" /> : null} Backup Sekarang
+            {busy === 'run' ? <RefreshIcon className="h-4 w-4 animate-spin" /> : null} {L.ftp.btnNow}
           </button>
         </div>
       </form>
 
       <div className="card p-4 text-sm">
-        <h3 className="mb-2 text-sm font-semibold text-zinc-200">Status Backup Terakhir</h3>
+        <h3 className="mb-2 text-sm font-semibold text-zinc-200">{L.ftp.statusTitle}</h3>
         <ul className="space-y-1 text-xs text-zinc-400">
-          <li>Percobaan terakhir : {fmt(state.lastAttempt)}</li>
+          <li>{L.ftp.lastAttempt} {fmt(state.lastAttempt)}</li>
           <li>Berhasil terakhir   : {fmt(state.lastSuccess)}</li>
           <li>File terakhir       : {state.lastFile ?? '-'}</li>
           {state.lastError && <li className="text-red-400">Error terakhir   : {state.lastError}</li>}

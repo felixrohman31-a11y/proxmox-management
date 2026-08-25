@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { AlertIcon, RefreshIcon } from './icons';
 import type { CreateMeta } from '@/types';
 import { fmtBytes } from '@/lib/format';
+import { useL } from './lang-context';
+import { fmt as tf } from '@/lib/i18n-dict';
 
 interface Props {
   clusterId: string;
@@ -30,6 +32,7 @@ function fileNameFromUrl(u: string): string {
 export default function CreateGuestForm({ clusterId, nodes }: Props) {
   const router = useRouter();
   const [type, setType] = useState<'ct' | 'vm'>('ct');
+  const L = useL();
   const [node, setNode] = useState(() => nodes.find((n) => n.status === 'online')?.node ?? nodes[0]?.node ?? '');
   const [meta, setMeta] = useState<CreateMeta | null>(null);
   const [metaErr, setMetaErr] = useState<string | null>(null);
@@ -130,21 +133,21 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
   }
 
   function validate(): string | null {
-    if (!node) return 'Pilih node terlebih dahulu.';
-    if (!meta) return 'Metadata node belum termuat.';
+    if (!node) return L.create.errPickGuest;
+    if (!meta) return L.create.errMeta;
     const vid = Number(vmid);
-    if (!vid || vid < 100) return 'VMID harus angka >= 100.';
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(hostname)) return 'Hostname tidak valid (huruf/angka/titik/strip).';
-    if (type === 'ct' && !lxcTemplate) return 'Pilih template CT.';
-    if (type === 'ct' && !storage) return 'Pilih storage root.';
-    if (Number(diskGb) < 1) return 'Ukuran disk minimal 1 GB.';
-    if (!bridge) return 'Pilih bridge.';
+    if (!vid || vid < 100) return L.create.errVmid;
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(hostname)) return L.create.errHostname;
+    if (type === 'ct' && !lxcTemplate) return L.create.errTplCt;
+    if (type === 'ct' && !storage) return L.create.errStore;
+    if (Number(diskGb) < 1) return L.create.errDisk;
+    if (!bridge) return L.create.errBridge;
     if (ipMode === 'static' && !/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(ipCidr))
       return 'Format IP tidak valid. Contoh: 192.168.100.50/24';
     if (type === 'vm' && installMode === 'clone' && !vmTemplate)
       return 'Belum ada template VM — gunakan metode ISO atau clone dari cluster lain.';
-    if (type === 'vm' && installMode === 'iso' && !isoVolid) return 'Pilih file ISO terlebih dahulu.';
-    if (type === 'vm' && installMode === 'iso' && !storage) return 'Pilih storage disk.';
+    if (type === 'vm' && installMode === 'iso' && !isoVolid) return L.create.errIso;
+    if (type === 'vm' && installMode === 'iso' && !storage) return L.create.errStorage;
     return null;
   }
 
@@ -391,7 +394,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
     <form onSubmit={submit} className="card space-y-5 p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="label">Tipe Guest</label>
+          <label className="label">{L.create.gtype}</label>
           <div className="grid grid-cols-2 gap-2">
             {(
               [
@@ -415,7 +418,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           </div>
         </div>
         <div>
-          <label className="label">Node</label>
+          <label className="label">{L.create.node}</label>
           <select className="input" value={node} onChange={(e) => setNode(e.target.value)}>
             {nodes.map((n) => (
               <option key={n.node} value={n.node} disabled={n.status !== 'online'}>
@@ -442,11 +445,11 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
         <>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className="label">VMID</label>
+              <label className="label">{L.create.vmid}</label>
               <input className="input" value={vmid} onChange={(e) => setVmid(e.target.value)} />
             </div>
             <div>
-              <label className="label">Hostname / Name</label>
+              <label className="label">{L.create.hostname}</label>
               <input
                 className="input"
                 value={hostname}
@@ -455,11 +458,11 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
               />
             </div>
             <div>
-              <label className="label">Cores</label>
+              <label className="label">{L.create.cores}</label>
               <input className="input" value={cores} onChange={(e) => setCores(e.target.value)} />
             </div>
             <div>
-              <label className="label">Memori (MB)</label>
+              <label className="label">{L.create.memory}</label>
               <input className="input" value={memory} onChange={(e) => setMemory(e.target.value)} />
             </div>
           </div>
@@ -467,7 +470,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           {type === 'ct' ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <label className="label">Template CT</label>
+                <label className="label">{L.create.lxcTemplate}</label>
                 <select className="input" value={lxcTemplate} onChange={(e) => setLxcTemplate(e.target.value)}>
                   {meta.lxcTemplates.length === 0 && <option value="">— tidak ada template —</option>}
                   {meta.lxcTemplates.map((t) => (
@@ -478,7 +481,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                 </select>
               </div>
               <div>
-                <label className="label">Storage Root</label>
+                <label className="label">{L.create.rootStore}</label>
                 <select className="input" value={storage} onChange={(e) => setStorage(e.target.value)}>
                   {meta.ctStorages.map((s) => (
                     <option key={s} value={s}>
@@ -488,18 +491,18 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                 </select>
               </div>
               <div>
-                <label className="label">Disk (GB)</label>
+                <label className="label">{L.create.diskGb}</label>
                 <input className="input" value={diskGb} onChange={(e) => setDiskGb(e.target.value)} />
               </div>
               <div>
-                <label className="label">Swap (MB)</label>
+                <label className="label">{L.create.swapMb}</label>
                 <input className="input" value={swap} onChange={(e) => setSwap(e.target.value)} />
               </div>
             </div>
           ) : (
             <>
               <div>
-                <label className="label">Metode Instalasi</label>
+                <label className="label">{L.create.installMethod}</label>
                 <div className="grid grid-cols-2 gap-2 sm:max-w-md">
                   {(
                     [
@@ -538,7 +541,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                   </div>
                 ) : (
                   <div className="lg:col-span-2">
-                    <label className="label">File ISO (cdrom)</label>
+                    <label className="label">{L.create.isoPick}</label>
                     <select className="input" value={isoVolid} onChange={(e) => setIsoVolid(e.target.value)}>
                       {meta.isos.length === 0 && <option value="">— belum ada ISO — unduh di bawah —</option>}
                       {meta.isos.map((i) => (
@@ -550,7 +553,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                   </div>
                 )}
                 <div>
-                  <label className="label">Storage Disk</label>
+                  <label className="label">{L.create.storageDisk}</label>
                   <select className="input" value={storage} onChange={(e) => setStorage(e.target.value)}>
                     {meta.vmStorages.map((s) => (
                       <option key={s} value={s}>
@@ -568,7 +571,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
               {installMode === 'iso' && (
                 <fieldset className="rounded-xl border border-zinc-800 p-4">
                   <legend className="px-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    Unduh ISO baru dari URL (server PVE mengunduh langsung)
+                    {L.create.dlSection}
                   </legend>
                   <div className="space-y-3">
                     <input
@@ -579,7 +582,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                     />
                     <div className="flex flex-wrap items-end gap-3">
                       <div className="w-56">
-                        <label className="label">Storage Tujuan</label>
+                        <label className="label">{L.create.dlStorage}</label>
                         <select className="input" value={dlStorage} onChange={(e) => setDlStorage(e.target.value)}>
                           {meta.isoStorages.map((s) => (
                             <option key={s} value={s}>
@@ -612,7 +615,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                       >
                         Unggah ke {dlStorage || 'storage'}
                       </button>
-                      <span className="text-xs text-zinc-600">maks ±512 MB lewat panel</span>
+                      <span className="text-xs text-zinc-600">{L.create.maxNote}</span>
                     </div>
 
                     {upPct !== null && upBytes && (
@@ -638,10 +641,10 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           )}
 
           <fieldset className="rounded-xl border border-zinc-800 p-4">
-            <legend className="px-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Jaringan</legend>
+            <legend className="px-2 text-xs font-medium uppercase tracking-wide text-zinc-500">{L.create.netLegend}</legend>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <label className="label">Bridge</label>
+                <label className="label">{L.create.bridge}</label>
                 <select className="input" value={bridge} onChange={(e) => setBridge(e.target.value)}>
                   {meta.bridges.length === 0 && <option value="">— tidak ada bridge —</option>}
                   {meta.bridges.map((b) => (
@@ -652,20 +655,20 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                 </select>
               </div>
               <div>
-                <label className="label">Mode IP</label>
+                <label className="label">{L.create.ipMode}</label>
                 <select
                   className="input"
                   value={ipMode}
                   onChange={(e) => setIpMode(e.target.value as 'dhcp' | 'static')}
                 >
-                  <option value="dhcp">DHCP</option>
-                  <option value="static">Static</option>
+                  <option value="dhcp">{L.create.dhcp}</option>
+                  <option value="static">{L.create.static}</option>
                 </select>
               </div>
               {ipMode === 'static' && (
                 <>
                   <div>
-                    <label className="label">IP / Prefix</label>
+                    <label className="label">{L.create.ipPrefix}</label>
                     <input
                       className="input"
                       value={ipCidr}
@@ -674,7 +677,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                     />
                   </div>
                   <div>
-                    <label className="label">Gateway</label>
+                    <label className="label">{L.create.gateway}</label>
                     <input
                       className="input"
                       value={gateway}
@@ -693,7 +696,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
 
           {type === 'ct' && (
             <div className="sm:w-1/2">
-              <label className="label">Password root CT (opsional)</label>
+              <label className="label">{L.create.rootPass}</label>
               <input
                 type="password"
                 className="input"
@@ -707,7 +710,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           {type === 'vm' && installMode === 'clone' && (
             <fieldset className="rounded-xl border border-zinc-800 p-4">
               <legend className="px-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Cloud-init (opsional)
+                {L.create.ciLegend}
               </legend>
               <label className="mb-3 flex items-center gap-2 text-sm text-zinc-400">
                 <input
@@ -721,11 +724,11 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
               {ciEnabled && (
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
-                    <label className="label">CI User</label>
+                    <label className="label">{L.create.ciUser}</label>
                     <input className="input" value={ciUser} onChange={(e) => setCiUser(e.target.value)} placeholder="root" />
                   </div>
                   <div>
-                    <label className="label">CI Password</label>
+                    <label className="label">{L.create.ciPass}</label>
                     <input
                       type="password"
                       className="input"
@@ -735,7 +738,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                     />
                   </div>
                   <p className="self-end text-xs leading-relaxed text-zinc-600">
-                    Butuh drive cloud-init pada template. Mode IP mengikuti pilihan jaringan di atas.
+                    {L.create.ciNote}
                   </p>
                 </div>
               )}
@@ -750,8 +753,8 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
               className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
             />
             {type === 'vm' && installMode === 'iso'
-              ? 'Boot VM dari ISO setelah dibuat (lanjutkan instalasi via konsol)'
-              : 'Jalankan guest setelah selesai dibuat'}
+              ? '{L.create.autoIso}'
+              : '{L.create.autoCt}'}
           </label>
         </>
       )}
