@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ProxCenter',
+  title: 'Proxmox Management',
   description: 'Sentral manajemen multi-cluster Proxmox VE via API'
 };
 

@@ -41,7 +41,7 @@ export default function LoginForm() {
         <div className="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 text-lg font-black text-white shadow-lg shadow-orange-900/40">
           PX
         </div>
-        <h1 className="mt-4 text-2xl font-bold tracking-tight text-zinc-100">ProxCenter</h1>
+        <h1 className="mt-4 text-2xl font-bold tracking-tight text-zinc-100">Proxmox Management</h1>
         <p className="mt-1 text-sm text-zinc-500">Masuk untuk mengelola cluster Proxmox VE Anda</p>
       </div>
 

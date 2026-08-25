@@ -138,7 +138,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
         storage,
         mode,
         compress,
-        'notes-template': '{{guestname}} — backup via ProxCenter'
+        'notes-template': '{{guestname}} — backup via Proxmox Management'
       };
       const r = await fetch(`/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/vzdump`, {
         method: 'POST',

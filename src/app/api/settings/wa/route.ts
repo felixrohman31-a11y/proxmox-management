@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   if (req.nextUrl.searchParams.get('action') === 'test') {
     const r = await sendNotification(
-      `✅ Test notifikasi ProxCenter — ${new Date().toLocaleString('id-ID', { hour12: false })} WIB`
+      `✅ Test notifikasi Proxmox Management — ${new Date().toLocaleString('id-ID', { hour12: false })} WIB`
     );
     await appendAudit({
       ts: new Date().toISOString(),

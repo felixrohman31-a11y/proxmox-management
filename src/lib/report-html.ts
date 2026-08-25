@@ -173,7 +173,7 @@ function page(title: string, sub: string, body: string): string {
   <p class="noprint"><button onclick="window.print()" style="padding:7px 16px;border:0;border-radius:8px;background:#ea580c;color:#fff;font-weight:600;cursor:pointer">Cetak / Simpan PDF</button></p>
   ${body}
   <p style="margin-top:28px;font-size:11.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px">
-    Dokumen dihasilkan otomatis oleh ProxCenter — data diambil langsung dari Proxmox VE pada saat pembuatan.
+    Dokumen dihasilkan otomatis oleh Proxmox Management — data diambil langsung dari Proxmox VE pada saat pembuatan.
   </p>
 </div>
 </body>

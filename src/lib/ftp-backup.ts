@@ -279,10 +279,10 @@ export async function runFtpBackup(reason: 'manual' | 'otomatis'): Promise<{ ok:
 
   const dataDir = ensureDataDir();
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
-  const filename = `proxcenter-config-${ts}.json`;
+  const filename = `proxmox-management-config-${ts}.json`;
 
   const payload = {
-    app: 'ProxCenter',
+    app: 'Proxmox Management',
     kind: 'config-backup',
     createdAt: new Date().toISOString(),
     note: 'Berisi clusters.json (kredensial terenkripsi), .secret (kunci), settings.json. Simpan aman.',
@@ -403,7 +403,7 @@ async function monitorCycle(): Promise<void> {
 
       const downed = Object.keys(prev).filter((k) => !(k in running)).slice(0, 3);
       for (const k of downed) {
-        const msg = `⚠️ PROXCENTER\nGuest MATI terdeteksi:\n${prev[k]}\nCluster: ${cluster.name}\nWaktu: ${new Date().toLocaleString('id-ID', { hour12: false })} WIB`;
+        const msg = `⚠️ PROXMOX MANAGEMENT\nGuest MATI terdeteksi:\n${prev[k]}\nCluster: ${cluster.name}\nWaktu: ${new Date().toLocaleString('id-ID', { hour12: false })} WIB`;
         const r = await sendNotification(msg);
         await appendAudit({
           ts: new Date().toISOString(),

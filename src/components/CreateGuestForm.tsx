@@ -242,7 +242,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           net0,
           unprivileged: 1,
           start: autoStart ? 1 : 0,
-          description: 'Dibuat via ProxCenter'
+          description: 'Dibuat via Proxmox Management'
         };
         if (rootPassword) body.password = rootPassword;
         const r = await fetch(`/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/lxc`, {
@@ -272,7 +272,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           ide2: `${isoVolid},media=cdrom`,
           boot: 'order=scsi0;ide2',
           agent: 1,
-          description: 'Dibuat via ProxCenter'
+          description: 'Dibuat via Proxmox Management'
         };
         const r = await fetch(`/api/pve/${clusterId}/nodes/${encodeURIComponent(node)}/qemu`, {
           method: 'POST',

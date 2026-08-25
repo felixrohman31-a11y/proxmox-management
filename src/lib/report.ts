@@ -124,7 +124,7 @@ export async function buildMonthlyReport(
   L.push(`LAPORAN BULANAN INFRASTRUKTUR VIRTUALISASI`);
   L.push(`Cluster : ${cluster.name} (${cluster.host})`);
   L.push(`Periode : ${BULAN[month]} ${year}`);
-  L.push(`Dibuat  : ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour12: false })} WIB oleh ProxCenter`);
+  L.push(`Dibuat  : ${now.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('id-ID', { hour12: false })} WIB oleh Proxmox Management`);
   L.push(garis);
   L.push('');
   L.push('A. RINGKASAN UNTUK PIMPINAN');
@@ -209,7 +209,7 @@ export async function buildMonthlyReport(
   }
   L.push('');
   L.push(garis);
-  L.push('Dokumen dihasilkan otomatis oleh ProxCenter — data diambil langsung dari Proxmox VE.');
+  L.push('Dokumen dihasilkan otomatis oleh Proxmox Management — data diambil langsung dari Proxmox VE.');
   L.push(garis);
 
   const slug = cluster.name.replace(/[^a-zA-Z0-9]+/g, '-');

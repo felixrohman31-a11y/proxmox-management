@@ -27,10 +27,10 @@ function Brand() {
   return (
     <Link href="/dashboard" className="flex items-center gap-2.5">
       <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 text-sm font-black text-white">
-        PX
+        PM
       </span>
       <span>
-        <span className="block text-sm font-bold leading-tight text-zinc-100">ProxCenter</span>
+        <span className="block text-sm font-bold leading-tight text-zinc-100">Proxmox Management</span>
         <span className="block text-[10px] uppercase tracking-wider text-zinc-500">Multi-Cluster Panel</span>
       </span>
     </Link>

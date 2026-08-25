@@ -27,7 +27,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
   const [port, setPort] = useState('21');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [directory, setDirectory] = useState('/backup/proxcenter');
+  const [directory, setDirectory] = useState('/backup/proxmox-management');
   const [passive, setPassive] = useState(true);
   const [autoDaily, setAutoDaily] = useState(false);
 
@@ -43,7 +43,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
       setHost(j.settings.host ?? '');
       setPort(String(j.settings.port ?? 21));
       setUsername(j.settings.username ?? '');
-      setDirectory(j.settings.directory ?? '/backup/proxcenter');
+      setDirectory(j.settings.directory ?? '/backup/proxmox-management');
       setPassive(j.settings.passive !== false);
       setAutoDaily(Boolean(j.settings.autoDaily));
     }
@@ -126,7 +126,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label">Host FTP</label>
-            <input className="input" value={host} onChange={(e) => setHost(e.target.value)} placeholder="ftp.example.com" />
+            <input className="input" value={host} onChange={(e) => setHost(e.target.value)} placeholder="192.0.2.10" />
           </div>
           <div>
             <label className="label">Port</label>

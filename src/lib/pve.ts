@@ -249,7 +249,7 @@ export class PveClient {
     const t = await this.ticket();
 
     const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `proxcenter-${randomUUID()}.upload`);
+    const tmpFile = path.join(tmpDir, `proxmox-management-${randomUUID()}.upload`);
     fs.writeFileSync(tmpFile, fileBuffer);
 
     const url =

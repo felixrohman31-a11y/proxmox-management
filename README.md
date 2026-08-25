@@ -1,4 +1,4 @@
-# ProxCenter
+# Proxmox Management
 
 Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js 14 + Tailwind CSS.
 
@@ -112,7 +112,7 @@ Uji cepat: `npm start` lalu buka `http://<ip>:3000/login` — Ctrl+C setelah yak
 ```bash
 cat > /etc/systemd/system/proxcenter.service <<'EOF'
 [Unit]
-Description=ProxCenter - Proxmox multi-cluster panel
+Description=Proxmox Management - Proxmox multi-cluster panel
 After=network.target
 
 [Service]
@@ -231,7 +231,7 @@ systemctl start proxcenter
 Rekomendasi user khusus (alih-alih root):
 
 ```bash
-pveum user add proxcenter@pve --comment "ProxCenter"
+pveum user add proxcenter@pve --comment "Proxmox Management"
 pveum aclmod / -users proxcenter@pve -roles Administrator
 ```
 

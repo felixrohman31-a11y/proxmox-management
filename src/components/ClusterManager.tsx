@@ -280,12 +280,12 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
                   className="input font-mono text-xs"
                   value={form.token}
                   onChange={(e) => set('token', e.target.value)}
-                  placeholder="root@pam!proxcenter=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  placeholder="root@pam!proxmox-management=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                   autoComplete="off"
                 />
                 <p className="mt-1.5 text-xs leading-relaxed text-zinc-600">
                   Buat token lewat <b>Datacenter → Permissions → API Tokens</b> atau CLI:{' '}
-                  <code className="text-zinc-500">pveum user token add root@pam proxcenter -privsep 0</code>. Jika{' '}
+                  <code className="text-zinc-500">pveum user token add root@pam proxmox-management -privsep 0</code>. Jika{' '}
                   <i>privsep</i> aktif, beri role Administrator pada token tersebut.
                 </p>
               </div>
@@ -315,7 +315,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
           </div>
           <p className="mt-3 text-xs text-zinc-600">
             Disarankan membuat user khusus dengan role Administrator, misalnya{' '}
-            <code className="text-zinc-500">proxcenter@pve</code>, alih-alih memakai root@pam.
+            <code className="text-zinc-500">proxmox-management@pve</code>, alih-alih memakai root@pam.
           </p>
         </form>
       )}
