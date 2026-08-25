@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useL } from './lang-context';
 import { RefreshIcon, SearchIcon } from './icons';
 
 interface AuditEntry {
@@ -22,6 +23,7 @@ function badgeCls(action: string): string {
 }
 
 export default function AuditTable() {
+  const L = useL();
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState('');
@@ -60,7 +62,7 @@ export default function AuditTable() {
   return (
     <div className="card overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 px-4 py-3">
-        <h2 className="text-sm font-semibold text-zinc-200">Audit Log</h2>
+        <h2 className="text-sm font-semibold text-zinc-200">{L.audit.title}</h2>
         <div className="flex items-center gap-2">
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
@@ -68,7 +70,7 @@ export default function AuditTable() {
               className="input w-52 py-1 pl-8 text-xs"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="cari aksi/user/target…"
+              placeholder="{L.audit.search}"
             />
           </div>
           <button type="button" onClick={load} disabled={loading} className="btn-ghost !px-2 !py-1">
@@ -81,11 +83,11 @@ export default function AuditTable() {
         <table className="w-full min-w-[720px] text-left">
           <thead className="sticky top-0 bg-zinc-900">
             <tr>
-              <Th>Waktu</Th>
-              <Th>User</Th>
-              <Th>Aksi</Th>
-              <Th>Target</Th>
-              <Th>Detail / IP</Th>
+              <Th>{L.audit.colTime}</Th>
+              <Th>{L.audit.colUser}</Th>
+              <Th>{L.audit.colAct}</Th>
+              <Th>{L.audit.colTarget}</Th>
+              <Th>{L.audit.colDetail}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/70">
@@ -111,7 +113,7 @@ export default function AuditTable() {
             {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-sm text-zinc-500">
-                  Belum ada entri audit yang cocok.
+                  {L.audit.empty}
                 </td>
               </tr>
             )}

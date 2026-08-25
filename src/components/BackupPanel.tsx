@@ -193,7 +193,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
         <h2 className="mb-4 text-sm font-semibold text-zinc-200">{L.backup.runTitle}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <label className="label">Node</label>
+            <label className="label">{L.backup.node}</label>
             <select className="input" value={node} onChange={(e) => setNode(e.target.value)}>
               {nodes.map((n) => (
                 <option key={n.node} value={n.node} disabled={n.status !== 'online'}>
@@ -204,7 +204,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
             </select>
           </div>
           <div>
-            <label className="label">Guest</label>
+            <label className="label">{L.backup.guest}</label>
             <select className="input" value={guestSel} onChange={(e) => setGuestSel(e.target.value)}>
               <option value="">{L.backup.guestPick}</option>
               {guests.map((g) => (
@@ -224,12 +224,12 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
                   </option>
                 ))
               ) : (
-                <option value="">— tidak ada storage backup —</option>
+                <option value="">{L.backup.noStore}</option>
               )}
             </select>
           </div>
           <div>
-            <label className="label">Mode</label>
+            <label className="label">{L.backup.mode}</label>
             <select className="input" value={mode} onChange={(e) => setMode(e.target.value)}>
               <option value="snapshot">Snapshot</option>
               <option value="suspend">Suspend</option>
@@ -286,7 +286,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
             File Backup Tersimpan{guest ? ` — ${guest.type.toUpperCase()} ${guest.vmid}` : ''}
           </h2>
           <button type="button" onClick={loadBackups} disabled={!guest || backupsLoading} className="btn-ghost !py-1">
-            <RefreshIcon className={`h-3.5 w-3.5 ${backupsLoading ? 'animate-spin' : ''}`} /> Muat ulang
+            <RefreshIcon className={`h-3.5 w-3.5 ${backupsLoading ? 'animate-spin' : ''}`} /> {L.backup.reload}
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -332,7 +332,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
               {!guest && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-sm text-zinc-500">
-                    Pilih guest untuk melihat daftar backup.
+                    {L.backup.pickHint}
                   </td>
                 </tr>
               )}

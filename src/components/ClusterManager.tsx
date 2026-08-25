@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Th, Td } from './TableBits';
+import { useL } from './lang-context';
 import {
   AlertIcon,
   BoltIcon,
@@ -72,6 +73,7 @@ function MiniBtn({
 
 export default function ClusterManager({ clusters }: { clusters: PublicCluster[] }) {
   const router = useRouter();
+  const L = useL();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [showForm, setShowForm] = useState(clusters.length === 0);
   const [saving, setSaving] = useState(false);
@@ -197,11 +199,11 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
       {showForm && (
         <form onSubmit={save} className="card p-5">
           <h2 className="mb-4 text-sm font-semibold text-zinc-200">
-            {form.id ? 'Edit Cluster' : 'Tambah Cluster Proxmox'}
+            {form.id ? '{L.clusters.formEdit}' : '{L.clusters.formNew}'}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="label">Nama</label>
+              <label className="label">{L.clusters.fName}</label>
               <input
                 className="input"
                 value={form.name}
@@ -210,7 +212,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
               />
             </div>
             <div>
-              <label className="label">Host / IP</label>
+              <label className="label">{L.clusters.fHost}</label>
               <input
                 className="input"
                 value={form.host}
@@ -219,11 +221,11 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
               />
             </div>
             <div>
-              <label className="label">Port API</label>
+              <label className="label">{L.clusters.fPort}</label>
               <input className="input" value={form.port} onChange={(e) => set('port', e.target.value)} placeholder="8006" />
             </div>
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="label">Metode Autentikasi</label>
+              <label className="label">{L.clusters.authMethod}</label>
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
@@ -247,7 +249,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
               </div>
             </div>
             <div>
-              <label className="label">Username (user@realm)</label>
+              <label className="label">{L.clusters.fUser}</label>
               <input
                 className="input"
                 value={form.username}
@@ -325,13 +327,13 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
           <table className="w-full min-w-[760px] text-left">
             <thead className="bg-zinc-900/60">
               <tr>
-                <Th>Nama</Th>
-                <Th>Endpoint</Th>
-                <Th>Username</Th>
-                <Th>Auth</Th>
-                <Th>TLS</Th>
-                <Th>Dibuat</Th>
-                <Th className="text-right">Aksi</Th>
+                <Th>{L.clusters.colName}</Th>
+                <Th>{L.clusters.colEp}</Th>
+                <Th>{L.clusters.colUser}</Th>
+                <Th>{L.clusters.colAuth}</Th>
+                <Th>{L.clusters.colTls}</Th>
+                <Th>{L.clusters.colCreated}</Th>
+                <Th className="text-right">{L.clusters.colAct}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/70">

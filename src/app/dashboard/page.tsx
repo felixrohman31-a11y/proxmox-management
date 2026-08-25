@@ -57,7 +57,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
     <>
       <PageHeader
         title={L.overview.title}
-        subtitle={cluster ? fmt(L.overview.subFor, { name: cluster.name }) + ` "${cluster.name}"` : 'Belum ada cluster terhubung'}
+        subtitle={cluster ? fmt(L.overview.subFor, { name: cluster.name }) : L.overview.subNone}
       >
         <ReportDownload clusterId={cluster?.id ?? ''} clusterName={cluster?.name} />
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard" />
@@ -66,9 +66,9 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
       {!cluster && (
         <div className="card mx-auto max-w-lg p-8 text-center">
           <LayersIcon className="mx-auto h-10 w-10 text-zinc-600" />
-          <h2 className="mt-3 text-lg font-medium text-zinc-200">Belum ada cluster Proxmox</h2>
+          <h2 className="mt-3 text-lg font-medium text-zinc-200">{L.common.emptyClusterTitle}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Tambahkan cluster pertama Anda untuk mulai memantau node dan virtual machine.
+            {L.common.emptyClusterDesc}
           </p>
           <Link href="/dashboard/clusters" className="btn-primary mt-5">
             Tambah Cluster
@@ -80,7 +80,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
         <div className="mb-4 flex items-start gap-2 rounded-xl border border-red-900/60 bg-red-950/40 p-4 text-sm text-red-300">
           <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
-            Gagal mengambil data dari <b>{cluster.host}</b>: {error}
+            {fmt(L.overview.failFetch, { host: cluster.host, err: error })}
           </span>
         </div>
       )}
@@ -91,40 +91,40 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
             <StatCard
               label="Nodes"
               value={`${onlineNodes.length}/${nodes.length}`}
-              sub={`${nodes.length - onlineNodes.length} offline`}
+              sub={`${nodes.length - onlineNodes.length} ${L.overview.offline}`}
               icon={<ServerIcon className="h-5 w-5" />}
             />
             <StatCard
               label={L.overview.statGuests}
               value={`${runningCount}/${guests.length}`}
-              sub={`${stoppedCount} stopped · ${templateCount} template`}
+              sub={`${stoppedCount} ${L.overview.stoppedWord} · ${templateCount} ${L.overview.templateWord}`}
               icon={<CubeIcon className="h-5 w-5" />}
             />
-            <StatCard label={L.overview.statCpu} value={`${weightedCpu.toFixed(1)}%`} sub={`${totalCores.toFixed(0)} core`}>
+            <StatCard label={L.overview.statCpu} value={`${weightedCpu.toFixed(1)}%`} sub={`${totalCores.toFixed(0)} ${L.overview.coreWord}`}>
               <Meter className="mt-3" value={weightedCpu} />
             </StatCard>
-            <StatCard label={L.overview.statMem} value={fmtBytes(memSum)} sub={`dari ${fmtBytes(memMaxSum)}`}>
+            <StatCard label={L.overview.statMem} value={fmtBytes(memSum)} sub={`${L.overview.fromWord} ${fmtBytes(memMaxSum)}`}>
               <Meter className="mt-3" value={pct(memSum, memMaxSum)} />
             </StatCard>
-            <StatCard label={L.overview.statStore} value={fmtBytes(diskSum)} sub={`dari ${fmtBytes(diskMaxSum)}`}>
+            <StatCard label={L.overview.statStore} value={fmtBytes(diskSum)} sub={`${L.overview.fromWord} ${fmtBytes(diskMaxSum)}`}>
               <Meter className="mt-3" value={pct(diskSum, diskMaxSum)} />
             </StatCard>
           </div>
 
           <section className="card overflow-hidden">
             <header className="border-b border-zinc-800 px-4 py-3">
-              <h2 className="text-sm font-semibold text-zinc-200">Node</h2>
+              <h2 className="text-sm font-semibold text-zinc-200">{L.overview.secNodes}</h2>
             </header>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left">
                 <thead>
                   <tr className="border-b border-zinc-800">
-                    <Th>Node</Th>
-                    <Th>Status</Th>
+                    <Th>{L.overview.statNodes}</Th>
+                    <Th>{L.vms.colStatus}</Th>
                     <Th>CPU</Th>
                     <Th className="min-w-[8rem]">Memori</Th>
                     <Th className="min-w-[10rem]">Disk</Th>
-                    <Th>Uptime</Th>
+                    <Th>{L.vms.colUptime}</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800/70">
@@ -152,7 +152,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
                   {nodes.length === 0 && (
                     <tr>
                       <Td colSpan={6} className="py-6 text-center text-zinc-500">
-                        Tidak ada data node.
+                        {L.overview.noNodes}
                       </Td>
                     </tr>
                   )}
@@ -163,12 +163,12 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
 
           <section className="card overflow-hidden">
             <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-              <h2 className="text-sm font-semibold text-zinc-200">Guest Terbaru</h2>
+              <h2 className="text-sm font-semibold text-zinc-200">{L.overview.secGuests}</h2>
               <Link
                 href={`/dashboard/vms?c=${cluster.id}`}
                 className="text-xs font-medium text-orange-400 hover:text-orange-300"
               >
-                Lihat semua →
+                {L.overview.viewAll}
               </Link>
             </header>
             <ul className="divide-y divide-zinc-800/70">
@@ -191,7 +191,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
                 </li>
               ))}
               {guests.length === 0 && (
-                <li className="px-4 py-6 text-center text-sm text-zinc-500">Belum ada VM/container pada cluster ini.</li>
+                <li className="px-4 py-6 text-center text-sm text-zinc-500">{L.overview.noGuests}</li>
               )}
             </ul>
           </section>

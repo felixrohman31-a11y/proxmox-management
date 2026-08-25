@@ -6,10 +6,13 @@ import { PveError } from '@/lib/pve';
 import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
 import Link from 'next/link';
+import { serverT } from '@/lib/locale-server';
+import { fmt } from '@/lib/i18n-dict';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CreatePage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
+  const L = serverT();
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
   let nodes: { node: string; status: string }[] = [];
@@ -25,15 +28,15 @@ export default async function CreatePage({ searchParams }: { searchParams?: { c?
 
   return (
     <>
-      <PageHeader title="Buat Guest" subtitle={cluster ? `Provisioning baru pada "${cluster.name}"` : 'Belum ada cluster'}>
+      <PageHeader title={L.create.title} subtitle={cluster ? fmt(L.create.subFor, { name: cluster.name }) : L.create.subNone}>
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard/create" />
       </PageHeader>
 
       {!cluster && (
         <div className="card mx-auto max-w-lg p-8 text-center">
           <PlusIcon className="mx-auto h-10 w-10 text-zinc-600" />
-          <h2 className="mt-3 text-lg font-medium text-zinc-200">Belum ada cluster Proxmox</h2>
-          <p className="mt-1 text-sm text-zinc-500">Tambahkan cluster untuk membuat VM/container baru.</p>
+          <h2 className="mt-3 text-lg font-medium text-zinc-200">{L.common.emptyClusterTitle}</h2>
+          <p className="mt-1 text-sm text-zinc-500">{L.common.emptyClusterDesc}</p>
           <Link href="/dashboard/clusters" className="btn-primary mt-5">
             Tambah Cluster
           </Link>

@@ -1,7 +1,9 @@
 import PageHeader from '@/components/PageHeader';
 import { TerminalIcon } from '@/components/icons';
 import { resolveCluster } from '@/lib/cluster-select';
+import { serverT } from '@/lib/locale-server';
 import Link from 'next/link';
+import { fmt } from '@/lib/i18n-dict';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +20,7 @@ export default async function ConsolePage({
 }) {
   const sp = searchParams ?? {};
   const pick = (v?: string | string[]): string => (Array.isArray(v) ? v[0] ?? '' : v ?? '');
+  const L = serverT();
   const { cluster } = resolveCluster(sp.c);
   const node = pick(sp.node);
   const type = pick(sp.type) === 'lxc' ? 'lxc' : 'qemu';
@@ -29,9 +32,9 @@ export default async function ConsolePage({
       <div className="card mx-auto max-w-lg p-8 text-center">
         <TerminalIcon className="mx-auto h-10 w-10 text-zinc-600" />
         <h2 className="mt-3 text-lg font-medium text-zinc-200">Parameter konsol tidak lengkap</h2>
-        <p className="mt-1 text-sm text-zinc-500">Buka kembali dari menu Virtual Machines.</p>
+        <p className="mt-1 text-sm text-zinc-500">{L.console.incompleteDesc}</p>
         <Link href="/dashboard/vms" className="btn-primary mt-5">
-          Kembali
+          {L.common.back}
         </Link>
       </div>
     );
@@ -46,7 +49,7 @@ export default async function ConsolePage({
 
   return (
     <>
-      <PageHeader title="Buka Konsol" subtitle={`${type === 'qemu' ? 'VM' : 'CT'} ${vmid} · ${name} @ ${node}`} />
+      <PageHeader title={L.console.title} subtitle={`${type === 'qemu' ? 'VM' : 'CT'} ${vmid} · ${name} @ ${node}`} />
       <div className="card mx-auto max-w-xl space-y-4 p-6">
         <p className="text-sm leading-relaxed text-zinc-400">
           Konsol noVNC disajikan langsung oleh web UI Proxmox. Karena panel dan Proxmox berada di alamat berbeda,
@@ -60,12 +63,12 @@ export default async function ConsolePage({
               1
             </span>
             <div>
-              <p className="text-zinc-300">Login ke web UI Proxmox</p>
+              <p className="text-zinc-300">{L.console.step1}</p>
               <p className="mt-0.5 text-xs text-zinc-500">
-                Jika muncul peringatan sertifikat, pilih <i>Advanced → Proceed</i>.
+                {L.console.certNote}
               </p>
               <a href={guiLogin} target="_blank" rel="noreferrer" className="btn-primary mt-2 inline-flex">
-                Buka &amp; Login ({cluster.host})
+                {fmt(L.console.step1Btn, { host: cluster.host })}
               </a>
             </div>
           </li>
@@ -74,17 +77,17 @@ export default async function ConsolePage({
               2
             </span>
             <div>
-              <p className="text-zinc-300">Buka konsol noVNC guest ini</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Pastikan langkah 1 sudah selesai agar tidak 401.</p>
+              <p className="text-zinc-300">{L.console.step2}</p>
+              <p className="mt-0.5 text-xs text-zinc-500">{L.console.step2Note}</p>
               <a href={novnc} target="_blank" rel="noreferrer" className="btn-primary mt-2 inline-flex">
-                Buka Konsol noVNC
+                {L.console.step2Btn}
               </a>
             </div>
           </li>
         </ol>
 
         <p className="text-xs text-zinc-600">
-          Tips: setelah login di langkah 1, tab yang sama juga bisa dipakai mengelola guest secara manual.
+          {L.console.tip}
         </p>
       </div>
     </>

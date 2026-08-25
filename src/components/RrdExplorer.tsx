@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { TrendChart } from './TrendChart';
 import { RefreshIcon, PowerIcon } from './icons';
 import { fmtBytes } from '@/lib/format';
+import { useL } from './lang-context';
+import { fmt } from '@/lib/i18n-dict';
 
 type Timeframe = 'hour' | 'day' | 'week' | 'month' | 'year';
 type TargetType = 'node' | 'guest';
@@ -38,6 +40,7 @@ function xFmtFor(tf: Timeframe): (ms: number) => string {
 }
 
 export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
+  const L = useL();
   const [targetType, setTargetType] = useState<TargetType>(init.targetType);
   const [nodeSel, setNodeSel] = useState(() => {
     if (init.targetType === 'node' && init.node && nodes.some((n) => n.node === init.node)) return init.node;
@@ -58,7 +61,6 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     const [t, vmid, node] = (guestSel || '').split('|');
     return guests.find((g) => g.type === t && String(g.vmid) === vmid && g.node === node);
   }, [guestSel, guests]);
-
 
   const load = useCallback(async () => {
     let url = '';
@@ -106,48 +108,36 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     return () => clearInterval(iv);
   }, [load]);
 
-  const cpuSeries = [{ key: 'cpu', label: 'CPU', color: '#fb923c', scale: 100 }];
   const GIB = 1 / 1024 ** 3;
+  const cpuSeries = [{ key: 'cpu', label: 'CPU', color: '#fb923c', scale: 100 }];
   const memSeries =
     targetType === 'node'
       ? [
-          { key: 'memused', label: 'Terpakai', color: '#38bdf8', scale: GIB },
-          { key: 'memtotal', label: 'Total', color: '#52525b', scale: GIB }
+          { key: 'memused', label: L.graphs.serUsed, color: '#38bdf8', scale: GIB },
+          { key: 'memtotal', label: L.graphs.serTotal, color: '#52525b', scale: GIB }
         ]
       : [
-          { key: 'mem', label: 'Terpakai', color: '#38bdf8', scale: GIB },
-          { key: 'maxmem', label: 'Alokasi', color: '#52525b', scale: GIB }
+          { key: 'mem', label: L.graphs.serUsed, color: '#38bdf8', scale: GIB },
+          { key: 'maxmem', label: L.graphs.serAlloc, color: '#52525b', scale: GIB }
         ];
   const netSeries = [
-    { key: 'netin', label: 'In', color: '#34d399' },
-    { key: 'netout', label: 'Out', color: '#818cf8' }
+    { key: 'netin', label: L.graphs.serIn, color: '#34d399' },
+    { key: 'netout', label: L.graphs.serOut, color: '#818cf8' }
   ];
   const diskSeries = [
-    { key: 'diskread', label: 'Read', color: '#fbbf24' },
-    { key: 'diskwrite', label: 'Write', color: '#f472b6' }
+    { key: 'diskread', label: L.graphs.serRead, color: '#fbbf24' },
+    { key: 'diskwrite', label: L.graphs.serWrite, color: '#f472b6' }
   ];
 
-  function Card({
-    title,
-    series,
-    yFmt,
-    tip
-  }: {
-    title: string;
-    series: { key: string; label: string; color: string; scale?: number }[];
-    yFmt: (v: number) => string;
-    tip: (v: number, name: string) => string;
-  }) {
+  function Card({ title, series, yFmt, tip }: { title: string; series: { key: string; label: string; color: string; scale?: number }[]; yFmt: (v: number) => string; tip: (v: number, name: string) => string }) {
     const hasData = rows?.some((r) => series.some((s) => r[s.key] != null));
     return (
       <div className="card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-medium text-zinc-300">{title}</h3>
-        </div>
+        <div className="mb-3"><h3 className="text-sm font-medium text-zinc-300">{title}</h3></div>
         {hasData ? (
           <TrendChart data={rows ?? []} series={series} xTickFmt={(ms) => xFmtFor(tf)(ms)} yFmt={yFmt} tipFmt={tip} />
         ) : (
-          <p className="py-10 text-center text-xs text-zinc-600">Tidak ada data untuk rentang ini.</p>
+          <p className="py-10 text-center text-xs text-zinc-600">{L.graphs.noChart}</p>
         )}
       </div>
     );
@@ -160,48 +150,36 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     <div className="space-y-4">
       <div className="card flex flex-wrap items-end gap-3 p-4">
         <div>
-          <label className="label">Target</label>
-          <select
-            className="input w-auto min-w-[130px]"
-            value={targetType}
-            onChange={(e) => setTargetType(e.target.value as TargetType)}
-          >
-            <option value="node">Node</option>
-            <option value="guest">VM / CT</option>
+          <label className="label">{L.graphs.target}</label>
+          <select className="input w-auto min-w-[130px]" value={targetType} onChange={(e) => setTargetType(e.target.value as TargetType)}>
+            <option value="node">{L.graphs.tNode}</option>
+            <option value="guest">{L.graphs.tGuest}</option>
           </select>
         </div>
-
         {targetType === 'node' ? (
           <div>
-            <label className="label">Node</label>
+            <label className="label">{L.graphs.tNode}</label>
             <select className="input w-auto min-w-[160px]" value={nodeSel} onChange={(e) => setNodeSel(e.target.value)}>
               {nodes.map((n) => (
-                <option key={n.node} value={n.node}>
-                  {n.node}
-                </option>
+                <option key={n.node} value={n.node}>{n.node}</option>
               ))}
             </select>
           </div>
         ) : (
           <div>
-            <label className="label">Guest</label>
-            <select
-              className="input w-auto min-w-[220px]"
-              value={guestSel}
-              onChange={(e) => setGuestSel(e.target.value)}
-            >
-              {guests.length === 0 && <option value="">— tidak ada guest —</option>}
+            <label className="label">{L.graphs.tGuest}</label>
+            <select className="input w-auto min-w-[220px]" value={guestSel} onChange={(e) => setGuestSel(e.target.value)}>
+              {guests.length === 0 && <option value="">—</option>}
               {guests.map((g) => (
-                <option key={`${g.type}|${g.vmid}|${g.node}`} value={`${g.type}|${g.vmid}|${g.node}`}>
+                <option key={guestKeyOf(g)} value={guestKeyOf(g)}>
                   {g.type === 'qemu' ? 'VM' : 'CT'} {g.vmid} · {g.name} ({g.node})
                 </option>
               ))}
             </select>
           </div>
         )}
-
         <div>
-          <label className="label">Rentang</label>
+          <label className="label">{L.graphs.range}</label>
           <div className="flex gap-1">
             {TFS.map((t) => (
               <button
@@ -217,9 +195,8 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
             ))}
           </div>
         </div>
-
         <button type="button" onClick={load} disabled={loading} className="btn-ghost ml-auto">
-          <RefreshIcon className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} /> Muat ulang
+          <RefreshIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {L.common.refresh}
         </button>
       </div>
 
@@ -228,8 +205,8 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       )}
 
       <p className="text-xs text-zinc-600">
-        Menampilkan: <span className="text-zinc-400">{targetLabel}</span> · rentang {tf}
-        {updated ? ` · diperbarui ${updated.toLocaleTimeString('id-ID', { hour12: false })}` : ''}
+        {L.graphs.showing} <span className="text-zinc-400">{targetLabel}</span> · {tf}
+        {updated ? ` · ${fmt(L.graphs.updatedAt, { time: updated.toLocaleTimeString('id-ID', { hour12: false }) })}` : ''}
       </p>
 
       {targetType === 'guest' && guest && guest.status && guest.status !== 'running' ? (
@@ -237,61 +214,31 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
           <span className="grid h-14 w-14 place-items-center rounded-full bg-amber-500/10 text-amber-400">
             <PowerIcon className="h-7 w-7" />
           </span>
-          <h3 className="mt-4 text-lg font-medium text-zinc-100">Guest sedang mati (offline)</h3>
+          <h3 className="mt-4 text-lg font-medium text-zinc-100">{L.graphs.offlineTitle}</h3>
           <p className="mt-1.5 max-w-md text-sm leading-relaxed text-zinc-400">
-            {guest.type === 'qemu' ? 'VM' : 'CT'} <b className="text-zinc-200">{guest.name}</b> ({guest.vmid}) pada
-            node <b className="text-zinc-200">{guest.node}</b> berstatus{' '}
-            <span className="font-medium capitalize text-amber-300">{guest.status}</span>. Grafik tidak ditampilkan
-            karena Proxmox tidak merekam metrik RRD untuk guest yang tidak berjalan.
+            {fmt(L.graphs.offlineDesc, {
+              k: guest.type === 'qemu' ? 'VM' : 'CT',
+              name: guest.name,
+              vmid: guest.vmid,
+              node: guest.node,
+              status: guest.status
+            })}
           </p>
-          <a href={`/dashboard/vms?c=${clusterId}`} className="btn-primary mt-6">
-            Buka Virtual Machines untuk menyalakan
-          </a>
+          <a href={`/dashboard/vms?c=${clusterId}`} className="btn-primary mt-6">{L.graphs.offlineBtn}</a>
         </div>
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">
-        <Card title="CPU (%)" series={cpuSeries} yFmt={(v) => `${Math.round(v)}%`} tip={(v) => `${v.toFixed(1)}%`} />
-        <Card
-          title="Memori"
-          series={memSeries}
-          yFmt={(v) => `${v.toFixed(1)} GiB`}
-          tip={(v) => `${v.toFixed(2)} GiB`}
-        />
-        <Card
-          title="Network"
-          series={netSeries}
-          yFmt={(v) => fmtBytes(v)}
-          tip={(v, name) => `${name}: ${fmtBytes(v)}/s`}
-        />
-        {targetType === 'guest' ? (
-          <Card
-            title="Disk IO"
-            series={diskSeries}
-            yFmt={(v) => fmtBytes(v)}
-            tip={(v, name) => `${name}: ${fmtBytes(v)}/s`}
-          />
-        ) : (
-          <>
-            <Card
-              title="Disk Root"
-              series={[
-                { key: 'rootused', label: 'Terpakai', color: '#fbbf24', scale: GIB },
-                { key: 'roottotal', label: 'Total', color: '#52525b', scale: GIB }
-              ]}
-              yFmt={(v) => `${v.toFixed(0)} GiB`}
-              tip={(v) => `${v.toFixed(2)} GiB`}
-            />
-            <Card
-              title="Swap"
-              series={[
-                { key: 'swapused', label: 'Terpakai', color: '#f472b6', scale: GIB },
-                { key: 'swaptotal', label: 'Total', color: '#52525b', scale: GIB }
-              ]}
-              yFmt={(v) => `${v.toFixed(0)} GiB`}
-              tip={(v) => `${v.toFixed(2)} GiB`}
-            />
-          </>
-        )}
+          <Card title={L.graphs.chartCpu} series={cpuSeries} yFmt={(v) => `${Math.round(v)}%`} tip={(v) => `${v.toFixed(1)}%`} />
+          <Card title={L.graphs.chartMem} series={memSeries} yFmt={(v) => `${v.toFixed(1)} GiB`} tip={(v) => `${v.toFixed(2)} GiB`} />
+          <Card title={L.graphs.chartNet} series={netSeries} yFmt={(v) => fmtBytes(v)} tip={(v, name) => `${name}: ${fmtBytes(v)}/s`} />
+          {targetType === 'guest' ? (
+            <Card title={L.graphs.chartIo} series={diskSeries} yFmt={(v) => fmtBytes(v)} tip={(v, name) => `${name}: ${fmtBytes(v)}/s`} />
+          ) : (
+            <>
+              <Card title={L.graphs.chartRoot} series={[{ key: 'rootused', label: L.graphs.serUsed, color: '#fbbf24', scale: GIB }, { key: 'roottotal', label: L.graphs.serTotal, color: '#52525b', scale: GIB }]} yFmt={(v) => `${v.toFixed(0)} GiB`} tip={(v) => `${v.toFixed(2)} GiB`} />
+              <Card title={L.graphs.chartSwap} series={[{ key: 'swapused', label: L.graphs.serUsed, color: '#f472b6', scale: GIB }, { key: 'swaptotal', label: L.graphs.serTotal, color: '#52525b', scale: GIB }]} yFmt={(v) => `${v.toFixed(0)} GiB`} tip={(v) => `${v.toFixed(2)} GiB`} />
+            </>
+          )}
         </div>
       )}
     </div>

@@ -6,6 +6,8 @@ import { PveError } from '@/lib/pve';
 import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
 import Link from 'next/link';
+import { serverT } from '@/lib/locale-server';
+import { fmt } from '@/lib/i18n-dict';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +25,7 @@ export default async function GraphsPage({
   searchParams?: { c?: string | string[]; t?: string | string[]; n?: string | string[]; g?: string | string[]; tf?: string | string[] };
 }) {
   const sp = searchParams ?? {};
+  const L = serverT();
   const { clusters, cluster } = resolveCluster(sp.c);
 
   let nodes: { node: string; status: string }[] = [];
@@ -46,15 +49,15 @@ export default async function GraphsPage({
 
   return (
     <>
-      <PageHeader title="Grafik Monitoring" subtitle={cluster ? `Riwayat resource RRD "${cluster.name}"` : 'Belum ada cluster'}>
+      <PageHeader title={L.graphs.title} subtitle={cluster ? fmt(L.graphs.subFor, { name: cluster.name }) : L.overview.subNone}>
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard/graphs" />
       </PageHeader>
 
       {!cluster && (
         <div className="card mx-auto max-w-lg p-8 text-center">
           <ChartIcon className="mx-auto h-10 w-10 text-zinc-600" />
-          <h2 className="mt-3 text-lg font-medium text-zinc-200">Belum ada cluster Proxmox</h2>
-          <p className="mt-1 text-sm text-zinc-500">Tambahkan cluster untuk melihat grafik monitoring.</p>
+          <h2 className="mt-3 text-lg font-medium text-zinc-200">{L.common.emptyClusterTitle}</h2>
+          <p className="mt-1 text-sm text-zinc-500">{L.common.emptyClusterDesc}</p>
           <Link href="/dashboard/clusters" className="btn-primary mt-5">
             Tambah Cluster
           </Link>
