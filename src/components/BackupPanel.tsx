@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, ArchiveIcon, RefreshIcon, TrashIcon } from './icons';
 import { fmtBytes } from '@/lib/format';
+import { useL } from './lang-context';
+import { fmt } from '@/lib/i18n-dict';
 import type { CreateMeta } from '@/types';
 
 interface Props {
@@ -21,6 +23,7 @@ interface DumpRow {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function BackupPanel({ clusterId, nodes, guests }: Props) {
+  const L = useL();
   const [node, setNode] = useState(() => nodes.find((n) => n.status === 'online')?.node ?? '');
   const [guestSel, setGuestSel] = useState('');
   const [storage, setStorage] = useState('');
@@ -124,11 +127,11 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
     setFormError(null);
     setDoneMsg(null);
     if (!guest) {
-      setFormError('Pilih guest terlebih dahulu.');
+      setFormError(L.backup.errPickGuest);
       return;
     }
     if (!storage) {
-      setFormError('Pilih storage tujuan backup.');
+      setFormError(L.backup.errPickStore);
       return;
     }
     setPhase(`Menjalankan vzdump ${guest.type.toUpperCase()} ${guest.vmid} ke ${storage}…`);
@@ -187,7 +190,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
         }}
         className="card p-5"
       >
-        <h2 className="mb-4 text-sm font-semibold text-zinc-200">Jalankan Backup (vzdump)</h2>
+        <h2 className="mb-4 text-sm font-semibold text-zinc-200">{L.backup.runTitle}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label className="label">Node</label>
@@ -203,7 +206,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
           <div>
             <label className="label">Guest</label>
             <select className="input" value={guestSel} onChange={(e) => setGuestSel(e.target.value)}>
-              <option value="">— pilih guest —</option>
+              <option value="">{L.backup.guestPick}</option>
               {guests.map((g) => (
                 <option key={`${g.type}|${g.vmid}|${g.node}`} value={`${g.type}|${g.vmid}|${g.node}`}>
                   {g.type === 'qemu' ? 'VM' : 'CT'} {g.vmid} · {g.name}
@@ -212,7 +215,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
             </select>
           </div>
           <div>
-            <label className="label">Storage Tujuan (backup)</label>
+            <label className="label">{L.backup.storeDst}</label>
             <select className="input" value={storage} onChange={(e) => setStorage(e.target.value)}>
               {meta?.backupStorages.length ? (
                 meta.backupStorages.map((s) => (
@@ -234,12 +237,12 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
             </select>
           </div>
           <div>
-            <label className="label">Kompresi</label>
+            <label className="label">{L.backup.compress}</label>
             <select className="input" value={compress} onChange={(e) => setCompress(e.target.value)}>
-              <option value="zstd">ZSTD (cepat)</option>
+              <option value="zstd">{L.backup.cZstd}</option>
               <option value="lzo">LZO</option>
               <option value="gzip">GZIP</option>
-              <option value="0">Tanpa kompresi</option>
+              <option value="0">{L.backup.cNone}</option>
             </select>
           </div>
         </div>
@@ -267,7 +270,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
 
         <div className="mt-4 flex items-center gap-3">
           <button type="submit" className="btn-primary" disabled={Boolean(phase) || !guest || metaLoading}>
-            <ArchiveIcon /> Jalankan Backup
+            <ArchiveIcon /> {L.backup.runBtn}
           </button>
           {phase && (
             <span className="flex items-center gap-2 text-sm text-zinc-400">
@@ -290,10 +293,10 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
           <table className="w-full min-w-[640px] text-left">
             <thead className="bg-zinc-900/60">
               <tr>
-                <Th>File (volid)</Th>
-                <Th>Ukuran</Th>
-                <Th>Tanggal</Th>
-                <Th className="text-right">Aksi</Th>
+                <Th>{L.backup.colFile}</Th>
+                <Th>{L.backup.colSize}</Th>
+                <Th>{L.backup.colDate}</Th>
+                <Th className="text-right">{L.backup.colAct}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/70">
@@ -308,7 +311,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
                     <div className="flex justify-end">
                       <button
                         type="button"
-                        title="Hapus file backup"
+                        title={L.backup.delTitle}
                         onClick={() => removeDump(b.volid)}
                         disabled={Boolean(phase)}
                         className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
