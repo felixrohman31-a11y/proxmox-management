@@ -111,15 +111,15 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
     e.preventDefault();
     setFormError(null);
     if (!form.name.trim() || !form.host.trim() || !form.username.trim()) {
-      setFormError('Lengkapi nama, host, dan username.');
+      setFormError(L.clusters.errFillNameHostUser);
       return;
     }
     if (form.authMethod === 'password' && !form.id && !form.password) {
-      setFormError('Password wajib diisi untuk metode User & Password.');
+      setFormError(L.clusters.errNeedPw);
       return;
     }
     if (form.authMethod === 'token' && !form.id && !form.token) {
-      setFormError('API Token wajib diisi untuk metode API Token.');
+      setFormError(L.clusters.errNeedTok);
       return;
     }
     setSaving(true);
@@ -141,7 +141,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setFormError(json.error ?? 'Gagal menyimpan cluster.');
+        setFormError(json.error ?? L.clusters.errSave);
         return;
       }
       setShowForm(false);
@@ -309,7 +309,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
           )}
           <div className="mt-4 flex gap-2">
             <button type="submit" disabled={saving} className="btn-primary">
-              {saving ? 'Menyimpan…' : form.id ? 'Simpan Perubahan' : 'Simpan Cluster'}
+              {saving ? L.clusters.saving : form.id ? L.clusters.saveChanges : L.clusters.btnSaveNew}
             </button>
             <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>
               Batal

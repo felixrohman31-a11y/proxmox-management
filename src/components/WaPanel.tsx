@@ -56,11 +56,11 @@ export default function WaPanel() {
   async function save() {
     setMsg(null);
     if (provider !== 'telegram' && !/^\+?\d{8,16}$/.test(phone.trim().replace(/^\+/, ''))) {
-      setMsg({ kind: 'err', text: 'Nomor tidak valid. Contoh: 6281234567890' });
+      setMsg({ kind: 'err', text: L.wa.invalidPhone });
       return;
     }
     if (provider === 'telegram' && !chatId.trim()) {
-      setMsg({ kind: 'err', text: 'Chat ID wajib diisi.' });
+      setMsg({ kind: 'err', text: L.wa.invalidChat });
       return;
     }
     setBusy('save');
@@ -78,7 +78,7 @@ export default function WaPanel() {
         body: JSON.stringify(payload)
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) setMsg({ kind: 'err', text: j.error ?? 'Gagal menyimpan.' });
+      if (!r.ok) setMsg({ kind: 'err', text: j.error ?? L.wa.errSave });
       else setMsg({ kind: 'ok', text: `Konfigurasi ${PROVIDER_INFO[provider].label} tersimpan.` });
       setApikey('');
       setBotToken('');
@@ -151,7 +151,7 @@ export default function WaPanel() {
         {provider === 'fonnte' && (
           <div>
             <label className="label">
-              Token Fonnte {loaded && <span className="normal-case text-zinc-600">(kosongkan jika tetap)</span>}
+              Token Fonnte {loaded && <span className="normal-case text-zinc-600">{L.wa.tokenKeep}</span>}
             </label>
             <input
               type="password"
@@ -167,7 +167,7 @@ export default function WaPanel() {
           <>
             <div>
               <label className="label">
-                {L.wa.botToken} {loaded && <span className="normal-case text-zinc-600">(kosongkan jika tetap)</span>}
+                {L.wa.botToken} {loaded && <span className="normal-case text-zinc-600">{L.wa.tokenKeep}</span>}
               </label>
               <input
                 type="password"

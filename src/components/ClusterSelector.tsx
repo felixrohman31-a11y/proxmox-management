@@ -16,7 +16,7 @@ export default function ClusterSelector({
   if (clusters.length === 0) return null;
   return (
     <select
-      aria-label="Pilih cluster"
+      aria-label="Select cluster"
       className="input w-auto min-w-[210px]"
       value={currentId ?? ''}
       onChange={(e) => router.push(`${basePath}?c=${e.target.value}`)}

@@ -75,7 +75,7 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
       if (password) payload.password = password;
       const r = await fetch('/api/settings/ftp', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) setMsg({ kind: 'err', text: j.error ?? 'Gagal menyimpan.' });
+      if (!r.ok) setMsg({ kind: 'err', text: j.error ?? L.ftp.errSave });
       else setMsg({ kind: 'ok', text: '{L.ftp.saved}' });
       setPassword('');
       await load();
@@ -139,13 +139,13 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
             <input className="input" value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div>
-            <label className="label">Password {!loaded && '(belum disimpan)'}</label>
+            <label className="label">Password {!loaded && L.ftp.passNotSaved}</label>
             <input
               type="password"
               className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={loaded ? 'kosongkan jika tetap' : ''}
+              placeholder={loaded ? L.ftp.passKeep : ''}
               autoComplete="new-password"
             />
           </div>
