@@ -106,14 +106,12 @@ export default function FtpBackupPanel({ clusters }: { clusters: PublicCluster[]
       <form onSubmit={(e) => { e.preventDefault(); save(); }} className="card p-5">
         <h2 className="mb-1 text-sm font-semibold text-zinc-200">{L.ftp.title}</h2>
         <p className="mb-4 text-xs leading-relaxed text-zinc-500">
-          Mengirim salinan konfigurasi panel (daftar cluster &amp; kredensial terenkripsi + kunci) ke server FTP.
-          Simpan arsip di lokasi yang aman — berisi kunci dekripsi.
-        </p>
+          {L.ftp.desc}</p>
 
         {clusters.length > 0 && (
           <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3">
             <p className="text-xs font-medium text-zinc-400">
-              Cluster tercakup dalam backup ({clusters.length}):
+              {L.ftp.coverage.replace('{n}', String(clusters.length))}
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {clusters.map((c) => (

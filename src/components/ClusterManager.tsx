@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Th, Td } from './TableBits';
 import { useL } from './lang-context';
+import { fmt } from '@/lib/i18n-dict';
 import {
   AlertIcon,
   BoltIcon,
@@ -153,7 +154,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
   }
 
   async function remove(c: PublicCluster) {
-    if (!window.confirm(`Hapus cluster "${c.name}"? Kredensial tersimpan juga akan dihapus.`)) return;
+    if (!window.confirm(`${fmt(L.clusters.delConfirm, { name: c.name })}`)) return;
     setDeleting(c.id);
     try {
       await fetch(`/api/clusters/${c.id}`, { method: 'DELETE' });
@@ -187,11 +188,11 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
       <div className="flex justify-end">
         {showForm ? (
           <button className="btn-ghost" onClick={() => setShowForm(false)}>
-            Tutup Form
+            {L.clusters.closeForm}
           </button>
         ) : (
           <button className="btn-primary" onClick={openCreate}>
-            <PlusIcon /> Tambah Cluster
+            <PlusIcon /> {L.clusters.add}
           </button>
         )}
       </div>
@@ -229,8 +230,8 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    ['password', 'User & Password'],
-                    ['token', 'API Token']
+                    ['password', L.clusters.aPw],
+                    ['token', L.clusters.aTok]
                   ] as const
                 ).map(([val, label]) => (
                   <button
@@ -316,8 +317,8 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
             </button>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
-            Disarankan membuat user khusus dengan role Administrator, misalnya{' '}
-            <code className="text-zinc-500">proxmox-management@pve</code>, alih-alih memakai root@pam.
+            {L.clusters.recUser}{' '}
+            
           </p>
         </form>
       )}
@@ -391,7 +392,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
               {clusters.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-zinc-500">
-                    Belum ada cluster. Klik &quot;Tambah Cluster&quot; untuk memulai.
+                    {L.clusters.emptyRow}
                   </td>
                 </tr>
               )}

@@ -2,31 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, BoltIcon, CheckIcon, RefreshIcon } from './icons';
-import { useL } from './lang-context';
+import { useL, setLangCookie } from './lang-context';
+import LangToggle from './LangToggle';
 
 type Provider = 'fonnte' | 'telegram';
-
-const PROVIDER_INFO: Record<Provider, { label: string; hint: React.ReactNode }> = {
-  telegram: {
-    label: 'Telegram',
-    hint: (
-      <>
-        Paling reliabel. Buat bot via <b>@BotFather</b> (perintah <code>/newbot</code>) → salin token. Chat ID bisa
-        didapat dari <b>@userinfobot</b>, atau kirim pesan ke bot Anda lalu cek{' '}
-        <code>api.telegram.org/bot&lt;token&gt;/getUpdates</code>.
-      </>
-    )
-  },
-  fonnte: {
-    label: 'Fonnte (WhatsApp)',
-    hint: (
-      <>
-        Daftar di <b>fonnte.com</b> → hubungkan device (scan QR dengan WhatsApp Anda) → salin token. Pesan terkirim
-        dari nomor WA Anda sendiri.
-      </>
-    )
-  }
-};
 
 export default function WaPanel() {
   const L = useL();
@@ -45,7 +24,6 @@ export default function WaPanel() {
     const j = await r.json();
     if (j.provider) setProvider(j.provider as Provider);
     setPhone(j.phone ?? '');
-    setChatId(j.chatId ?? '');
     setLoaded(true);
   }, []);
 
@@ -65,11 +43,7 @@ export default function WaPanel() {
     }
     setBusy('save');
     try {
-      const payload: Record<string, unknown> = {
-        provider,
-        phone: phone.replace(/^\+/, ''),
-        chatId: chatId.trim()
-      };
+      const payload: Record<string, unknown> = { provider, phone: phone.replace(/^\+/, ''), chatId: chatId.trim() };
       if (apikey) payload.apikey = apikey;
       if (botToken) payload.botToken = botToken;
       const r = await fetch('/api/settings/wa', {
@@ -79,7 +53,7 @@ export default function WaPanel() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setMsg({ kind: 'err', text: j.error ?? L.wa.errSave });
-      else setMsg({ kind: 'ok', text: `Konfigurasi ${PROVIDER_INFO[provider].label} tersimpan.` });
+      else setMsg({ kind: 'ok', text: L.wa.saved });
       setApikey('');
       setBotToken('');
       await load();
@@ -100,6 +74,12 @@ export default function WaPanel() {
     }
   }
 
+  const PROVIDERS: Array<{ key: Provider; label: string; hint: string }> = [
+    { key: 'telegram', label: L.wa.pTel, hint: L.wa.hintTel },
+    { key: 'fonnte', label: L.wa.pFonnte, hint: L.wa.hintFonnte }
+  ];
+  const currentHint = PROVIDERS.find((p) => p.key === provider)?.hint ?? '';
+
   return (
     <form
       onSubmit={(e) => {
@@ -108,75 +88,55 @@ export default function WaPanel() {
       }}
       className="card p-5"
     >
-      <h2 className="text-sm font-semibold text-zinc-200">{L.wa.title}</h2>
-      <p className="mt-1 mb-4 text-xs leading-relaxed text-zinc-500">
-        Panel mengirim peringatan otomatis saat guest terdeteksi mati (pemeriksaan tiap 5 menit). Pilih salah satu
-        layanan pengiriman.
-      </p>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-zinc-200">{L.wa.title}</h2>
+        <LangToggle compact />
+      </div>
+      <p className="mt-1 mb-4 text-xs leading-relaxed text-zinc-500">{L.wa.desc}</p>
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-3">
-        {(Object.keys(PROVIDER_INFO) as Provider[]).map((p) => (
+      <div className="mb-4 grid gap-2 sm:grid-cols-2">
+        {PROVIDERS.map((p) => (
           <button
-            key={p}
+            key={p.key}
             type="button"
-            onClick={() => setProvider(p)}
+            onClick={() => setProvider(p.key)}
             className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-              provider === p
+              provider === p.key
                 ? 'border-orange-500 bg-orange-500/10 text-orange-400'
                 : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700'
             }`}
           >
-            {PROVIDER_INFO[p].label}
+            {p.label}
           </button>
         ))}
       </div>
 
       <p className="mb-4 rounded-lg border border-zinc-800 bg-zinc-950/40 p-3 text-xs leading-relaxed text-zinc-500">
-        {PROVIDER_INFO[provider].hint}
+        {currentHint}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {provider !== 'telegram' && (
           <div>
             <label className="label">{L.wa.phone}</label>
-            <input
-              className="input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="6281234567890"
-            />
+            <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="6281234567890" />
           </div>
         )}
-
         {provider === 'fonnte' && (
           <div>
             <label className="label">
-              Token Fonnte {loaded && <span className="normal-case text-zinc-600">{L.wa.tokenKeep}</span>}
+              Token Fonnte {loaded && <span className="normal-case text-zinc-600">{L.ftp.passKeep}</span>}
             </label>
-            <input
-              type="password"
-              className="input"
-              value={apikey}
-              onChange={(e) => setApikey(e.target.value)}
-              autoComplete="new-password"
-            />
+            <input type="password" className="input" value={apikey} onChange={(e) => setApikey(e.target.value)} autoComplete="new-password" />
           </div>
         )}
-
         {provider === 'telegram' && (
           <>
             <div>
               <label className="label">
-                {L.wa.botToken} {loaded && <span className="normal-case text-zinc-600">{L.wa.tokenKeep}</span>}
+                {L.wa.botToken} {loaded && <span className="normal-case text-zinc-600">{L.ftp.passKeep}</span>}
               </label>
-              <input
-                type="password"
-                className="input"
-                value={botToken}
-                onChange={(e) => setBotToken(e.target.value)}
-                placeholder="123456:ABC-DEF..."
-                autoComplete="new-password"
-              />
+              <input type="password" className="input" value={botToken} onChange={(e) => setBotToken(e.target.value)} placeholder="123456:ABC-DEF..." autoComplete="new-password" />
             </div>
             <div>
               <label className="label">{L.wa.chatId}</label>
@@ -194,22 +154,18 @@ export default function WaPanel() {
               : 'border-emerald-800/60 bg-emerald-950/40 text-emerald-300'
           }`}
         >
-          {msg.kind === 'err' ? (
-            <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : (
-            <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />
-          )}
+          {msg.kind === 'err' ? <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" /> : <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />}
           {msg.text}
         </p>
       )}
 
       <div className="mt-4 flex gap-2">
         <button type="submit" disabled={busy !== null} className="btn-primary">
-          {busy === 'save' && <RefreshIcon className="h-4 w-4 animate-spin" />} Simpan
+          {busy === 'save' && <RefreshIcon className="h-4 w-4 animate-spin" />} {L.wa.save}
         </button>
         <button type="button" className="btn-ghost" onClick={test} disabled={busy !== null}>
           {busy === 'test' ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <BoltIcon />}
-          Kirim Pesan Uji
+          {L.wa.test}
         </button>
       </div>
     </form>
