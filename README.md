@@ -268,3 +268,19 @@ src/
 - [ ] Multi-user panel + RBAC
 - [ ] Restore VM/CT langsung dari file dump
 - [ ] Grafik monitoring per guest dengan jendela kustom
+
+---
+
+## 💝 Dukung Pengembangan
+
+Jika Proxmox Management bermanfaat untuk infrastruktur Anda, dukungan donasi
+sangat membantu keberlanjutan pengembangan fitur berikutnya.
+
+**Donate Crypto — BNB Chain (BEP-20):**
+
+```
+0x4649b364523D4DdC329583E218f20d52b2997367
+```
+
+> Wallet BNB Smart Chain — juga menerima token BEP-20 lainnya
+> (USDT, USDC, dll). Terima kasih atas dukungannya! 🙏
