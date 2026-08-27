@@ -31,7 +31,7 @@ function fileNameFromUrl(u: string): string {
 
 export default function CreateGuestForm({ clusterId, nodes }: Props) {
   const router = useRouter();
-  const [type, setType] = useState<'ct' | 'vm'>('ct');
+  const [type, setType] = useState<'ct' | 'vm' | 'vmware'>('ct');
   const L = useL();
   const [node, setNode] = useState(() => nodes.find((n) => n.status === 'online')?.node ?? nodes[0]?.node ?? '');
   const [meta, setMeta] = useState<CreateMeta | null>(null);
@@ -62,6 +62,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
   const [dlStorage, setDlStorage] = useState('');
   const [dlUrl, setDlUrl] = useState('');
   const [isoFile, setIsoFile] = useState<File | null>(null);
+  const [vmwareFile, setVmwareFile] = useState<File | null>(null);
   const [upPct, setUpPct] = useState<number | null>(null);
   const [upBytes, setUpBytes] = useState<{ loaded: number; total: number } | null>(null);
 
@@ -102,7 +103,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
     loadMeta();
   }, [loadMeta]);
 
-  function switchType(t: 'ct' | 'vm') {
+  function switchType(t: 'ct' | 'vm' | 'vmware') {
     setType(t);
     setStorage('');
     setLxcTemplate('');
@@ -138,6 +139,10 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
     const vid = Number(vmid);
     if (!vid || vid < 100) return L.create.errVmid;
     if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*$/.test(hostname)) return L.create.errHostname;
+    if (type === 'vmware') {
+      if (!storage) return L.create.errStorage;
+      return null;
+    }
     if (type === 'ct' && !lxcTemplate) return L.create.errTplCt;
     if (type === 'ct' && !storage) return L.create.errStore;
     if (Number(diskGb) < 1) return L.create.errDisk;
@@ -327,6 +332,17 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
           if (startUpid.startsWith('UPID:')) await awaitTask(node, startUpid, `Start VM ${vid}`);
         }
         setDoneMsg(`VM ${vid} (${hostname}) dibuat & booting dari ISO. Buka menu Virtual Machines → tombol konsol untuk instalasi OS.`);
+      } else if (type === 'vmware') {
+        setPhase({ label: `Mengunggah ${vmwareFile?.name} ke ${storage} di ${node}…` });
+        const formData = new FormData();
+        formData.append('file', vmwareFile!);
+        const r = await fetch(
+          `/api/vmware/import/${clusterId}/${encodeURIComponent(node)}/${encodeURIComponent(storage)}`,
+          { method: 'POST', body: formData }
+        );
+        const j = await r.json().catch(() => null);
+        if (!r.ok) throw new Error(j?.error ?? `Import OVA/VMDK gagal (HTTP ${r.status}).`);
+        setDoneMsg(j.message ?? `File berhasil diunggah ke ${storage}.`);
       } else {
         const tplId = Number(vmTemplate);
         setPhase({ label: `Cloning template ${tplId} → ${vid}…` });
@@ -399,7 +415,8 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
             {(
               [
                 ['ct', 'Container (CT)'],
-                ['vm', 'Virtual Machine']
+                ['vm', 'Virtual Machine'],
+                ['vmware', 'Import OVA/VMDK']
               ] as const
             ).map(([val, label]) => (
               <button
@@ -499,7 +516,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                 <input className="input" value={swap} onChange={(e) => setSwap(e.target.value)} />
               </div>
             </div>
-          ) : (
+          ) : type === 'vm' ? (
             <>
               <div>
                 <label className="label">{L.create.installMethod}</label>
@@ -638,6 +655,38 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
                 </fieldset>
               )}
             </>
+          ) : (
+            <fieldset className="rounded-xl border border-zinc-800 p-4">
+              <legend className="px-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Import VMware (OVA/VMDK)
+              </legend>
+              <div className="space-y-3">
+                <input
+                  type="file"
+                  accept=".ova,.ovf,.vmdk"
+                  onChange={(e) => setVmwareFile(e.target.files?.[0] ?? null)}
+                  className="text-xs text-zinc-400 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-800 file:px-3 file:py-1.5 file:text-xs file:text-zinc-200 hover:file:bg-zinc-700"
+                />
+                <div className="w-64">
+                  <label className="label">{L.create.storageDisk}</label>
+                  <select className="input" value={storage} onChange={(e) => setStorage(e.target.value)}>
+                    {meta.vmStorages.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {vmwareFile && (
+                  <p className="text-xs text-zinc-600">
+                    File: <code>{vmwareFile.name}</code> · {(vmwareFile.size / 1024 ** 2).toFixed(1)} MB
+                  </p>
+                )}
+                <p className="text-xs leading-relaxed text-zinc-600">
+                  File disimpan ke storage terpilih (maks 1 GB). Untuk VM besar gunakan SCP + konversi qemu-img di host.
+                </p>
+              </div>
+            </fieldset>
           )}
 
           <fieldset className="rounded-xl border border-zinc-800 p-4">
@@ -752,9 +801,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
               onChange={(e) => setAutoStart(e.target.checked)}
               className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
             />
-            {type === 'vm' && installMode === 'iso'
-              ? '{L.create.autoIso}'
-              : '{L.create.autoCt}'}
+            {type === 'vm' && installMode === 'iso' ? L.create.autoIso : L.create.autoCt}
           </label>
         </>
       )}
@@ -772,7 +819,7 @@ export default function CreateGuestForm({ clusterId, nodes }: Props) {
 
       <div className="flex items-center gap-3">
         <button type="submit" className="btn-primary" disabled={Boolean(phase) || metaLoading}>
-          Buat {type === 'ct' ? 'Container' : 'VM'}
+          {type === 'ct' ? 'Buat Container' : type === 'vmware' ? 'Import OVA/VMDK' : 'Buat VM'}
         </button>
         {phase && (
           <span className="flex items-center gap-2 text-sm text-zinc-400">
