@@ -3,7 +3,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import { ensureDataDir } from './secrets';
-import { encryptString } from './crypto-store';
+import { encryptString, decryptString, reEncryptIfNeeded } from './crypto-store';
 import type { PublicCluster } from '@/types';
 
 export interface StoredCluster {
@@ -126,4 +126,52 @@ export async function deleteCluster(id: string): Promise<boolean> {
   if (next.length === list.length) return false;
   await writeList(next);
   return true;
+}
+
+export function getDecryptedPassword(id: string): string | null {
+  const cluster = getStoredCluster(id);
+  if (!cluster) return null;
+  try {
+    return decryptString(cluster.encPassword);
+  } catch {
+    return null;
+  }
+}
+
+export function getDecryptedToken(id: string): string | null {
+  const cluster = getStoredCluster(id);
+  if (!cluster || !cluster.encToken) return null;
+  try {
+    return decryptString(cluster.encToken);
+  } catch {
+    return null;
+  }
+}
+
+export async function migrateClusterEncryption(): Promise<{ migrated: number; errors: number }> {
+  const list = readRawList();
+  let migrated = 0;
+  let errors = 0;
+  for (const cluster of list) {
+    try {
+      const newEncPassword = reEncryptIfNeeded(cluster.encPassword);
+      if (newEncPassword !== cluster.encPassword) {
+        cluster.encPassword = newEncPassword;
+        migrated++;
+      }
+      if (cluster.encToken) {
+        const newEncToken = reEncryptIfNeeded(cluster.encToken);
+        if (newEncToken !== cluster.encToken) {
+          cluster.encToken = newEncToken;
+          migrated++;
+        }
+      }
+    } catch {
+      errors++;
+    }
+  }
+  if (migrated > 0) {
+    await writeList(list);
+  }
+  return { migrated, errors };
 }
