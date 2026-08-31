@@ -10,11 +10,12 @@ import type { PublicCluster } from '@/types';
  *
  * Konsep:
  * - Setiap guest (VM/CT) dan node fisik bisa punya target ketersediaan (default 99.9%).
- * - Aktual dihitung dari rrddata Proxmox (timeframe=month): gap antar sampel
- *   di dalam window dianggap downtime (guest/node tidak melapor).
- * - Window: [max(awal bulan, sampel pertama - dt), min(akhir bulan, sekarang)].
- *   Guest/node yang saat ini tidak aktif dihitung hanya sampai sampel terakhirnya
- *   (pemadaman setelahnya diasumsikan pematian yang disengaja).
+ * - Aktual dihitung dari rrddata Proxmox (timeframe=month). Proxmox selalu
+ *   mengembalikan grid baris untuk seluruh window, tapi baris TANPA metrik
+ *   berarti entitas tidak hidup pada titik itu → dihitung downtime.
+ * - Window: [max(awal bulan, sampel aktif pertama), min(akhir bulan, sekarang)].
+ *   Guest/node yang saat ini tidak aktif dihitung hanya sampai sampel aktif
+ *   terakhir (pemadaman setelahnya diasumsikan pematian yang disengaja).
  * - Catatan: rrddata timeframe "month" hanya menyimpan ~30 hari terakhir,
  *   jadi bulan-bulan lampau yang di luar jangkauan akan berstatus "no-data".
  */
@@ -32,7 +33,6 @@ export interface SlaRow {
   downtimeMin: number | null;
   windowHours: number | null;
   status: 'ok' | 'breach' | 'no-data';
-  note?: string;
 }
 
 export interface SlaSummary {
@@ -148,8 +148,9 @@ function targetFor(cfg: SlaConfig, clusterId: string, key: string): number {
 
 // ---------- availability math (pure, unit-testable) ----------
 
-export interface RrdRow {
-  t: number;
+export interface SlaSample {
+  t: number; // epoch detik
+  active: boolean; // true bila baris rrddata mengandung metrik (entitas hidup)
 }
 
 export interface AvailabilityResult {
@@ -159,39 +160,44 @@ export interface AvailabilityResult {
 }
 
 /**
- * Hitung ketersediaan dari daftar timestamp sampel rrddata.
+ * Hitung ketersediaan dari sampel rrddata.
+ * - Baris rrddata Proxmox hadir untuk seluruh grid waktu, tapi TANPA metrik
+ *   saat entitas tidak hidup — jadi "aktif" = baris punya metrik.
  * - `monthStart`/`monthEnd`: batas periode (epoch detik, eksklusif di end).
- * - `nowSec`: epoch sekarang (untuk membatasi bulan berjalan).
- * - Window: [max(monthStart, sampel pertama), min(monthEnd, nowSec, sampel terakhir + dt)].
- *   Gap antar sampel di dalam window = downtime; interval sebelum sampel pertama
- *   dan setelah sampel terakhir tidak dihukum (charitable).
- * Return null bila data tidak cukup untuk dihitung.
+ * - `nowSec`: epoch sekarang (membatasi bulan berjalan).
+ * - `activeNow`: entitas sedang hidup → window sampai sekarang; bila tidak,
+ *   window berhenti di sampel aktif terakhir (ekor tidak dihukum).
+ * Return null bila tidak ada sampel aktif (tidak bisa dihitung).
  */
 export function computeAvailability(
-  rows: RrdRow[],
+  samples: SlaSample[],
   monthStart: number,
   monthEnd: number,
-  nowSec: number
+  nowSec: number,
+  activeNow: boolean
 ): AvailabilityResult | null {
-  const times = (rows ?? [])
-    .map((r) => r.t)
-    .filter((t) => typeof t === 'number' && isFinite(t) && t > 0)
-    .sort((a, b) => a - b);
-  if (times.length < 2) return null;
+  const rows = (samples ?? [])
+    .map((r) => ({ t: Number(r?.t), active: Boolean(r?.active) }))
+    .filter((r) => isFinite(r.t) && r.t > 0)
+    .sort((a, b) => a.t - b.t);
+
+  const activeTimes = rows.filter((r) => r.active).map((r) => r.t);
+  if (!activeTimes.length) return null;
 
   const diffs: number[] = [];
-  for (let i = 1; i < times.length; i++) {
-    const d = times[i] - times[i - 1];
+  for (let i = 1; i < rows.length; i++) {
+    const d = rows[i].t - rows[i - 1].t;
     if (d > 0) diffs.push(d);
   }
   if (!diffs.length) return null;
   diffs.sort((a, b) => a - b);
   const dt = diffs[Math.floor(diffs.length / 2)] || 300;
 
-  const first = times[0];
-  const last = times[times.length - 1];
-  const ws = Math.max(monthStart, first);
-  const we = Math.min(monthEnd, nowSec, last + dt);
+  const firstActive = activeTimes[0];
+  const lastActive = activeTimes[activeTimes.length - 1];
+  const endCap = Math.min(monthEnd, nowSec);
+  const ws = Math.max(monthStart, firstActive);
+  const we = activeNow ? endCap : Math.min(endCap, lastActive + dt);
   if (we <= ws) return null;
 
   const MAX_SLOTS = 20000;
@@ -200,8 +206,15 @@ export function computeAvailability(
   let idx = 0;
   for (let t = ws; t < we && total < MAX_SLOTS; t += dt) {
     total++;
-    while (idx < times.length && times[idx] < t - dt / 2) idx++;
-    if (idx < times.length && Math.abs(times[idx] - t) <= dt / 2) up++;
+    while (idx < rows.length && rows[idx].t < t - dt / 2) idx++;
+    let hit = false;
+    for (let j = idx; j < rows.length && rows[j].t <= t + dt / 2; j++) {
+      if (rows[j].active) {
+        hit = true;
+        break;
+      }
+    }
+    if (hit) up++;
   }
   if (!total) return null;
 
@@ -259,19 +272,20 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 120_000;
 
-type PveClient = ReturnType<typeof getPveClient>;
-
 function makeRow(
   cfg: SlaConfig,
   clusterId: string,
   base: Omit<SlaRow, 'target' | 'actualPct' | 'downtimeMin' | 'windowHours' | 'status'>,
-  rows: RrdRow[] | null,
+  samples: SlaSample[] | null,
   monthStart: number,
   monthEnd: number,
-  nowSec: number
+  nowSec: number,
+  activeNow: boolean
 ): SlaRow {
   const target = targetFor(cfg, clusterId, base.key);
-  const avail = rows ? computeAvailability(rows, monthStart, monthEnd, nowSec) : null;
+  const avail = samples
+    ? computeAvailability(samples, monthStart, monthEnd, nowSec, activeNow)
+    : null;
   if (!avail) {
     return {
       ...base,
@@ -317,10 +331,29 @@ export async function slaForCluster(
 
   const query = { timeframe: 'month', cf: 'AVERAGE' } as const;
 
+  const toSamples = (
+    arr: Array<Record<string, unknown>> | null | undefined
+  ): SlaSample[] | null => {
+    if (!arr || !arr.length) return null;
+    const out = arr
+      .map((e) => ({
+        t: Number(e.time),
+        active:
+          (typeof e.cpu === 'number' && isFinite(e.cpu)) ||
+          (typeof e.memused === 'number' && isFinite(e.memused))
+      }))
+      .filter((r) => isFinite(r.t) && r.t > 0);
+    return out.length ? out : null;
+  };
+
   const nodeSeries = await Promise.all(
     nodesRaw.map((n) =>
       client
-        .get<RrdRow[]>(`/nodes/${encodeURIComponent(String(n.node))}/rrddata`, query)
+        .get<Array<Record<string, unknown>>>(
+          `/nodes/${encodeURIComponent(String(n.node))}/rrddata`,
+          query
+        )
+        .then(toSamples)
         .catch(() => null)
     )
   );
@@ -328,10 +361,11 @@ export async function slaForCluster(
   const guestSeries = await Promise.all(
     guestsRaw.map((g) =>
       client
-        .get<RrdRow[]>(
+        .get<Array<Record<string, unknown>>>(
           `/nodes/${encodeURIComponent(String(g.node))}/${String(g.type)}/${Number(g.vmid)}/rrddata`,
           query
         )
+        .then(toSamples)
         .catch(() => null)
     )
   );
@@ -352,7 +386,8 @@ export async function slaForCluster(
       nodeSeries[i],
       monthStart,
       monthEnd,
-      nowSec
+      nowSec,
+      statusNow === 'online'
     );
   });
 
@@ -376,7 +411,8 @@ export async function slaForCluster(
       guestSeries[i],
       monthStart,
       monthEnd,
-      nowSec
+      nowSec,
+      statusNow === 'running'
     );
   });
 
