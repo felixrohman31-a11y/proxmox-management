@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useL } from './lang-context';
+import { useL, useLocale } from './lang-context';
 
 export default function ReportDownload({ clusterId, clusterName }: { clusterId: string; clusterName?: string }) {
   const L = useL();
+  const locale = useLocale();
   const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [scope, setScope] = useState<'aktif' | 'semua'>('aktif');
 
@@ -12,7 +13,7 @@ export default function ReportDownload({ clusterId, clusterName }: { clusterId: 
     const [y, m] = month.split('-');
     if (!y || !m) return;
     const cid = scope === 'semua' ? 'all' : clusterId;
-    window.location.href = `/api/reports/${cid}/monthly?year=${y}&month=${Number(m)}&format=${format}`;
+    window.location.href = `/api/reports/${cid}/monthly?year=${y}&month=${Number(m)}&format=${format}&locale=${locale}`;
   }
 
   return (

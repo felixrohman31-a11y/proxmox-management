@@ -1,35 +1,49 @@
 import { fmtBytesShort, svgAreaChart } from './report-svg';
 import type { MonthlyData } from './report-data';
 import { fmtDowntime, type SlaRow } from './sla';
+import { getReportStrings } from './report-strings';
 import type { PublicCluster } from '@/types';
+
+type ReportLocale = 'id' | 'en';
+
+const BULAN_EN = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
+const BULAN_ID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+function bulan(month: number, locale: ReportLocale): string {
+  return (locale === 'en' ? BULAN_EN : BULAN_ID)[month] ?? '';
+}
 
 function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-const BULAN = [
-  '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-];
+function chartBlock(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const nodeLabel = 'Node';
+  const cpuLabel = en ? 'CPU Load (%)' : 'Beban CPU (%)';
+  const memLabel = en ? 'Memory' : 'Memori';
+  const terpakaiLabel = en ? 'Used' : 'Terpakai';
+  const totalLabel = 'Total';
+  const networkLabel = en ? 'Network Total' : 'Network Total';
+  const inLabel = 'In';
+  const outLabel = 'Out';
 
-function chartBlock(d: MonthlyData): string {
   const chartsPerNode = d.nodes
     .filter((n) => (d.nodeSeries[n.node]?.length ?? 0) > 1)
     .map(
       (n) => `
-      <h3 style="margin:16px 0 8px">Node ${esc(n.node)}</h3>
+      <h3 style="margin:16px 0 8px">${nodeLabel} ${esc(n.node)}</h3>
       <div class="chartgrid">
         <div class="chartbox">
-          <div class="ctitle">Beban CPU (%)</div>
+          <div class="ctitle">${cpuLabel}</div>
           ${svgAreaChart(d.nodeSeries[n.node], [{ key: 'cpu', label: 'CPU', color: '#ea580c' }], (v) => `${Math.round(v)}%`)}
         </div>
         <div class="chartbox">
-          <div class="ctitle">Memori</div>
+          <div class="ctitle">${memLabel}</div>
           ${svgAreaChart(
             d.nodeSeries[n.node],
             [
-              { key: 'memG', label: 'Terpakai', color: '#0284c7' },
-              { key: 'memTotG', label: 'Total', color: '#94a3b8' }
+              { key: 'memG', label: terpakaiLabel, color: '#0284c7' },
+              { key: 'memTotG', label: totalLabel, color: '#94a3b8' }
             ],
             (v) => `${v.toFixed(0)} GB`
           )}
@@ -57,11 +71,11 @@ function chartBlock(d: MonthlyData): string {
   return (
     chartsPerNode +
     (netAgg.length > 1
-      ? `<div class="chartbox" style="margin-top:14px"><div class="ctitle">Network Total</div>${svgAreaChart(
+      ? `<div class="chartbox" style="margin-top:14px"><div class="ctitle">${networkLabel}</div>${svgAreaChart(
           netAgg,
           [
-            { key: 'netin', label: 'In', color: '#16a34a' },
-            { key: 'netout', label: 'Out', color: '#4f46e5' }
+            { key: 'netin', label: inLabel, color: '#16a34a' },
+            { key: 'netout', label: outLabel, color: '#4f46e5' }
           ],
           (v) => fmtBytesShort(v)
         )}</div>`
@@ -69,77 +83,109 @@ function chartBlock(d: MonthlyData): string {
   );
 }
 
-function guestTable(d: MonthlyData): string {
+function guestTable(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const thStatus = en ? 'Status' : 'Status';
+  const thNama = en ? 'Name' : 'Nama';
+  const thID = 'ID';
+  const thNode = 'Node';
+  const thMem = en ? 'Memory' : 'Memori';
+  const danLainnya = en ? `and ${d.guests.length - 30} more.` : `dan ${d.guests.length - 30} lainnya.`;
   const rows = d.guests
     .slice(0, 30)
     .map(
       (g) => `<tr><td>${esc(g.status)}</td><td><b>${esc(g.name)}</b></td><td style="text-align:center">${g.vmid}</td><td>${esc(g.node)}</td><td style="text-align:right">${esc(g.memPct)}</td></tr>`
     )
     .join('');
-  return `<table><tr><th>Status</th><th>Nama</th><th style="text-align:center">ID</th><th>Node</th><th style="text-align:right">Memori</th></tr>${rows}</table>${
-    d.guests.length > 30 ? `<p><i>… dan ${d.guests.length - 30} lainnya.</i></p>` : ''
+  return `<table><tr><th>${thStatus}</th><th>${thNama}</th><th style="text-align:center">${thID}</th><th>${thNode}</th><th style="text-align:right">${thMem}</th></tr>${rows}</table>${
+    d.guests.length > 30 ? `<p><i>… ${danLainnya}</i></p>` : ''
   }`;
 }
 
-function storageTable(d: MonthlyData): string {
+function storageTable(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const thStorage = 'Storage';
+  const thNode = 'Node';
+  const thTotal = 'Total';
+  const thTerpakai = en ? 'Used' : 'Terpakai';
+  const thPct = '%';
+  const thKategori = en ? 'Category' : 'Kategori';
+  const kritisLabel = en ? 'CRITICAL' : 'KRITIS';
+  const waspardaLabel = en ? 'Warning' : 'Waspada';
+  const amanLabel = en ? 'Safe' : 'Aman';
   const rows = d.storages
     .map((s) => {
       const color = s.pct >= 85 ? '#dc2626' : s.pct >= 70 ? '#d97706' : '#059669';
+      const kat = s.pct >= 85 ? kritisLabel : s.pct >= 70 ? waspardaLabel : amanLabel;
       return `<tr><td><b>${esc(s.storage)}</b></td><td>${esc(s.node)}</td><td>${esc(s.total)}</td>
         <td style="min-width:170px"><div style="background:#e2e8f0;border-radius:6px;height:10px;width:100%"><div style="width:${Math.min(100, s.pct)}%;height:10px;border-radius:6px;background:${color}"></div></div></td>
-        <td style="text-align:right">${s.pct}%</td><td style="color:${color};font-weight:600">${s.pct >= 85 ? 'KRITIS' : s.pct >= 70 ? 'Waspada' : 'Aman'}</td></tr>`;
+        <td style="text-align:right">${s.pct}%</td><td style="color:${color};font-weight:600">${kat}</td></tr>`;
     })
     .join('');
-  return `<table><tr><th>Storage</th><th>Node</th><th>Total</th><th>Terpakai</th><th style="text-align:right">%</th><th>Kategori</th></tr>${rows}</table>`;
+  return `<table><tr><th>${thStorage}</th><th>${thNode}</th><th>${thTotal}</th><th>${thTerpakai}</th><th style="text-align:right">${thPct}</th><th>${thKategori}</th></tr>${rows}</table>`;
 }
 
-function nodeTable(d: MonthlyData): string {
+function nodeTable(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const thNode = 'Node';
+  const thStatus = en ? 'Status' : 'Status';
+  const thOperasional = en ? 'Uptime' : 'Operasional';
+  const thCPU = 'CPU';
+  const thMem = en ? 'Memory' : 'Memori';
+  const aktifLabel = en ? 'ONLINE' : 'AKTIF';
+  const offlineLabel = en ? 'OFFLINE' : 'TIDAK AKTIF';
   const rows = d.nodes
     .map(
       (n) => `<tr><td><b>${esc(n.node)}</b></td><td>${
-        n.status === 'online' ? '<span style="color:#059669;font-weight:600">AKTIF</span>' : '<span style="color:#dc2626;font-weight:600">TIDAK AKTIF</span>'
+        n.status === 'online' ? `<span style="color:#059669;font-weight:600">${aktifLabel}</span>` : `<span style="color:#dc2626;font-weight:600">${offlineLabel}</span>`
       }</td><td>${esc(n.uptimeDays)}</td><td style="text-align:right">${n.cpuPct}%</td><td style="text-align:right">${n.memPct}% (${esc(n.memUsed)} / ${esc(n.memTotal)})</td></tr>`
     )
     .join('');
-  return `<table><tr><th>Node</th><th>Status</th><th>Operasional</th><th style="text-align:right">CPU</th><th style="text-align:right">Memori</th></tr>${rows}</table>`;
+  return `<table><tr><th>${thNode}</th><th>${thStatus}</th><th>${thOperasional}</th><th style="text-align:right">${thCPU}</th><th style="text-align:right">${thMem}</th></tr>${rows}</table>`;
 }
 
-function failedBlock(d: MonthlyData): string {
-  if (!d.failedTasks.length)
-    return '<p>Tidak ada kegagalan proses teknis yang tercatat pada periode ini.</p>';
+function failedBlock(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const noEvents = en
+    ? 'No failed processes recorded in this period.'
+    : 'Tidak ada kegagalan proses teknis yang tercatat pada periode ini.';
+  if (!d.failedTasks.length) return `<p>${noEvents}</p>`;
   return `<ul>${d.failedTasks
     .map((f) => `<li><code>${esc(f.type)}</code> — ${esc(f.date)} · status: ${esc(f.status)}</li>`)
     .join('')}</ul>`;
 }
 
-function recommendationItems(d: MonthlyData): string[] {
+function recommendationItems(d: MonthlyData, locale: ReportLocale = 'id'): string[] {
+  const R = getReportStrings(locale);
   const out: string[] = [];
   for (const s of d.storages.filter((x) => x.pct >= 85))
-    out.push(`Segera tambah/bersihkan kapasitas penyimpanan <b>${esc(s.storage)}</b> node ${esc(s.node)} (terpakai ${s.pct}%).`);
+    out.push(R.recStoreCritical.replace('{s}', esc(s.storage ?? '')).replace('{p}', String(Math.round(s.pct))));
   for (const s of d.storages.filter((x) => x.pct >= 70 && x.pct < 85))
-    out.push(`Pantau kapasitas <b>${esc(s.storage)}</b> (${s.pct}%) dan rencanakan penambahan ruang.`);
+    out.push(R.recStoreWarning.replace('{s}', esc(s.storage ?? '')).replace('{p}', String(Math.round(s.pct))));
   const offline = d.nodes.filter((n) => n.status !== 'online');
-  if (offline.length) out.push(`Periksa server fisik tidak aktif: ${offline.map((n) => esc(n.node)).join(', ')}.`);
-  if (d.failedTasks.length) out.push('Tinjau proses yang gagal agar tidak berulang bulan depan.');
+  if (offline.length) out.push(R.recOfflineNode);
+  if (d.failedTasks.length) out.push(R.recFailedTasks);
   const stopped = d.guests.filter((g) => !['BERJALAN', 'template'].includes(g.status));
-  if (stopped.length) out.push(`Konfirmasi apakah ${stopped.length} mesin yang mati memang sudah tidak digunakan.`);
+  if (stopped.length) out.push(R.recStoppedGuests.replace('{n}', String(stopped.length)));
   return out;
 }
 
-function slaSection(d: MonthlyData, withLetter = true): string {
+function slaSection(d: MonthlyData, locale: ReportLocale = 'id', withLetter = true): string {
   if (!d.sla) return '';
   const s = d.sla;
+  const en = locale === 'en';
+  const R = getReportStrings(locale);
   const title = withLetter
-    ? '<h2>G. Service Level Agreement (SLA)</h2>'
-    : '<h3 style="font-size:14px;margin-top:14px;color:#334155">Service Level Agreement (SLA)</h3>';
-  if (!s.summary.tracked) return `${title}<p>Belum ada data SLA untuk periode ini.</p>`;
+    ? `<h2>${R.secG}</h2>`
+    : `<h3 style="font-size:14px;margin-top:14px;color:#334155">${R.secG.replace(/^[A-Z]\.\s*/, '')}</h3>`;
+  if (!s.summary.tracked) return `${title}<p>${R.slaNone}</p>`;
 
   const statusCell = (r: SlaRow) =>
     r.status === 'ok'
-      ? '<span style="color:#059669;font-weight:600">MEMENUHI</span>'
+      ? `<span style="color:#059669;font-weight:600">${R.slaCompliant.toUpperCase()}</span>`
       : r.status === 'breach'
-        ? '<span style="color:#dc2626;font-weight:600">MELANGGAR</span>'
-        : '<span style="color:#64748b">tidak ada data</span>';
+        ? `<span style="color:#dc2626;font-weight:600">${R.slaBreach}</span>`
+        : `<span style="color:#64748b">${R.slaNoDataShort}</span>`;
 
   const table = (rows: SlaRow[], worstFirst = false) => {
     const list = worstFirst
@@ -147,33 +193,46 @@ function slaSection(d: MonthlyData, withLetter = true): string {
       : rows;
     const trs = list
       .map(
-        (r) => `<tr><td><b>${esc(r.name)}</b>${r.vmid != null ? ` <span style="color:#64748b">(${r.vmid})</span>` : ''}</td><td>${esc(r.node)}</td><td style="text-align:right">${r.target.toFixed(2)}%</td><td style="text-align:right">${r.actualPct === null ? '—' : `${r.actualPct.toFixed(2)}%`}</td><td style="text-align:right">${fmtDowntime(r.downtimeMin, false)}</td><td>${statusCell(r)}</td></tr>`
+        (r) => `<tr><td><b>${esc(r.name)}</b>${r.vmid != null ? ` <span style="color:#64748b">(${r.vmid})</span>` : ''}</td><td>${esc(r.node)}</td><td style="text-align:right">${r.target.toFixed(2)}%</td><td style="text-align:right">${r.actualPct === null ? '—' : `${r.actualPct.toFixed(2)}%`}</td><td style="text-align:right">${fmtDowntime(r.downtimeMin, en)}</td><td>${statusCell(r)}</td></tr>`
       )
       .join('');
-    return `<table><tr><th>Nama</th><th>Node</th><th style="text-align:right">Target</th><th style="text-align:right">Aktual</th><th style="text-align:right">Downtime</th><th>Status</th></tr>${trs}</table>`;
+    return `<table><tr><th>${R.name}</th><th>${R.node}</th><th style="text-align:right">${R.slaHtmlTarget}</th><th style="text-align:right">${R.slaHtmlActual}</th><th style="text-align:right">${R.slaHtmlDowntime}</th><th>${R.slaHtmlStatus}</th></tr>${trs}</table>`;
   };
 
   return `${title}
-  <p>Rata-rata ketersediaan <b>${s.summary.avgPct === null ? '—' : `${s.summary.avgPct.toFixed(2)}%`}</b> — ${s.summary.compliant} dari ${s.summary.tracked} entitas memenuhi target, ${s.summary.breach} melanggar. Total downtime: <b>${fmtDowntime(s.summary.totalDowntimeMin, false)}</b>.</p>
-  <p style="margin-bottom:4px"><b>Node fisik:</b></p>
+  <p>${R.slaSummaryLine
+    .replace('{avg}', s.summary.avgPct === null ? '—' : s.summary.avgPct.toFixed(2))
+    .replace('{ok}', String(s.summary.compliant))
+    .replace('{n}', String(s.summary.tracked))
+    .replace('{breach}', String(s.summary.breach))} ${en ? 'Total downtime' : 'Total downtime'}: <b>${fmtDowntime(s.summary.totalDowntimeMin, en)}</b>.</p>
+  <p style="margin-bottom:4px"><b>${R.slaHtmlNodes}:</b></p>
   ${table(s.nodes)}
-  <p style="margin:10px 0 4px"><b>VM &amp; container (ketersediaan terendah dulu, maks 15):</b></p>
+  <p style="margin:10px 0 4px"><b>${R.slaHtmlGuests}:</b></p>
   ${table(s.guests, true)}
-  <p style="font-size:11.5px;color:#94a3b8">Dihitung dari data monitoring Proxmox ±30 hari terakhir; gap sampel dianggap downtime.</p>`;
+  <p style="font-size:11.5px;color:#94a3b8">${en
+    ? 'Computed from the last ~30 days of Proxmox monitoring data; sample gaps count as downtime.'
+    : 'Dihitung dari data monitoring Proxmox ±30 hari terakhir; gap sampel dianggap downtime.'}</p>`;
 }
 
-function detailSections(d: MonthlyData, withTitles = true): string {
+function detailSections(d: MonthlyData, withTitles = true, locale: ReportLocale = 'id', letters = false): string {
+  const en = locale === 'en';
   const t = (s: string) => (withTitles ? `<h2>${s}</h2>` : '');
+  const L = (letter: string, id: string, enTitle: string) => (letters ? `${letter}. ` : '') + (en ? enTitle : id);
   return `
-    ${t('Kondisi Server Fisik')}${nodeTable(d)}
-    ${t('Mesin Virtual & Container')}${guestTable(d)}
-    ${t('Kapasitas Penyimpanan')}${storageTable(d)}
-    ${t('Catatan Kejadian Penting')}${failedBlock(d)}`;
+    ${t(L('C', 'Kondisi Server Fisik', 'PHYSICAL SERVER STATUS'))}${nodeTable(d, locale)}
+    ${t(L('D', 'Mesin Virtual & Container', 'VIRTUAL MACHINES &amp; CONTAINERS'))}${guestTable(d, locale)}
+    ${t(L('E', 'Kapasitas Penyimpanan', 'STORAGE CAPACITY'))}${storageTable(d, locale)}
+    ${t(L('F', 'Catatan Kejadian Penting', 'IMPORTANT EVENTS'))}${failedBlock(d, locale)}`;
 }
 
-function page(title: string, sub: string, body: string): string {
+function page(title: string, sub: string, body: string, locale: ReportLocale = 'id'): string {
+  const en = locale === 'en';
+  const printBtn = en ? 'Print / Save as PDF' : 'Cetak / Simpan PDF';
+  const footerText = en
+    ? 'Document auto-generated by Proxmox Management — data fetched directly from Proxmox VE.'
+    : 'Dokumen dihasilkan otomatis oleh Proxmox Management — data diambil langsung dari Proxmox VE pada saat pembuatan.';
   return `<!DOCTYPE html>
-<html lang="id">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <title>${esc(title)}</title>
@@ -207,17 +266,19 @@ function page(title: string, sub: string, body: string): string {
 <div class="page">
   <h1>${esc(title)}</h1>
   <div class="sub">${sub}</div>
-  <p class="noprint"><button onclick="window.print()" style="padding:7px 16px;border:0;border-radius:8px;background:#ea580c;color:#fff;font-weight:600;cursor:pointer">Cetak / Simpan PDF</button></p>
+  <p class="noprint"><button onclick="window.print()" style="padding:7px 16px;border:0;border-radius:8px;background:#ea580c;color:#fff;font-weight:600;cursor:pointer">${printBtn}</button></p>
   ${body}
   <p style="margin-top:28px;font-size:11.5px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px">
-    Dokumen dihasilkan otomatis oleh Proxmox Management — data diambil langsung dari Proxmox VE pada saat pembuatan.
+    ${footerText}
   </p>
 </div>
 </body>
 </html>`;
 }
 
-export function buildMonthlyReportHtml(d: MonthlyData): string {
+export function buildMonthlyReportHtml(d: MonthlyData, locale: ReportLocale = 'id'): string {
+  const R = getReportStrings(locale);
+  const en = locale === 'en';
   const running = d.guests.filter((g) => g.status === 'BERJALAN');
   const stopped = d.guests.filter((g) => !['BERJALAN', 'template'].includes(g.status));
   const online = d.nodes.filter((n) => n.status === 'online');
@@ -225,52 +286,68 @@ export function buildMonthlyReportHtml(d: MonthlyData): string {
   const waspada = d.storages.filter((s) => s.pct >= 70 && s.pct < 85);
 
   const alasan: string[] = [];
-  if (online.length < d.nodes.length) alasan.push(`${d.nodes.length - online.length} server fisik tidak aktif`);
-  if (kritis.length) alasan.push(`${kritis.length} penyimpanan berstatus KRITIS (>85%)`);
-  if (waspada.length) alasan.push(`${waspada.length} penyimpanan mulai penuh (70-85%)`);
-  if (d.failedTasks.length) alasan.push(`${d.failedTasks.length} proses teknis gagal bulan ini`);
-  if (stopped.length) alasan.push(`${stopped.length} mesin dalam keadaan mati`);
+  if (online.length < d.nodes.length)
+    alasan.push(`${d.nodes.length - online.length} ${en ? 'physical servers offline' : 'server fisik tidak aktif'}`);
+  if (kritis.length) alasan.push(`${kritis.length} ${R.critical} (>85%)`);
+  if (waspada.length) alasan.push(`${waspada.length} ${R.warning} (70-85%)`);
+  if (d.failedTasks.length) alasan.push(`${d.failedTasks.length} ${R.failedProcesses.toLowerCase()}`);
+  if (stopped.length) alasan.push(`${stopped.length} ${R.guestsStopped}`);
 
   const kondisi =
-    alasan.length === 0 ? 'SEHAT' : kritis.length ? 'PERLU TINDAK LANJUT SEGERA' : 'CENDERUNG SEHAT, ADA CATATAN';
+    alasan.length === 0 ? R.healthy : kritis.length ? R.needsAction : R.generallyHealthy;
   const badgeColor =
-    kondisi === 'SEHAT' ? '#059669' : kondisi.startsWith('PERLU TINDAK') ? '#dc2626' : '#d97706';
+    kondisi === R.healthy ? '#059669' : kondisi === R.needsAction ? '#dc2626' : '#d97706';
+
+  const thIndikator = en ? 'Indicator' : 'Indikator';
+  const thNilai = en ? 'Value' : 'Nilai';
+  const dari = en ? 'of' : 'dari';
+  const gagal = en ? 'failed' : 'gagal';
+  const aksi = en ? 'actions recorded' : 'aksi tercatat';
+  const perluDiperhatikan = en ? 'Items needing attention:' : 'Perlu diperhatikan:';
+  const grafikTren = en ? 'B. TREND CHARTS (last 30 days)' : 'B. Grafik Tren (30 hari terakhir)';
+  const rekomen = en ? 'H. RECOMMENDATIONS' : 'H. Rekomendasi Tindak Lanjut';
+  const semuaNormal = en ? 'All indicators are within normal limits.' : 'Semua indikator normal.';
+  const prosesBulan = en ? 'Processes this month' : 'Proses teknis bulan ini';
+  const thAktivitas = en ? 'Panel activity' : 'Aktivitas administrasi panel';
+
+  const slaRow =
+    d.sla && d.sla.summary.avgPct !== null
+      ? `<tr><td>${R.slaHtmlSummary}</td><td style="text-align:right">${d.sla.summary.avgPct.toFixed(2)}% (${d.sla.summary.compliant}/${d.sla.summary.tracked} ${R.slaCompliant.toLowerCase()})</td></tr>`
+      : '';
+  const overallRow =
+    d.overallSla
+      ? `<tr><td>${R.sla}</td><td style="text-align:right">${d.overallSla.overall.toFixed(2)}% (${R.slaTarget} ${d.overallSla.target.toFixed(1)}% — ${d.overallSla.achieved ? R.slaAchieved : R.slaNotAchieved} / ${d.overallSla.level.toUpperCase()})</td></tr>`
+      : '';
 
   const body = `
-  <h2>A. Ringkasan untuk Pimpinan</h2>
-  <p>Kondisi umum infrastruktur: <span class="badge" style="background:${badgeColor}">${kondisi}</span></p>
+  <h2>${R.secA}</h2>
+  <p>${R.condition}: <span class="badge" style="background:${badgeColor}">${kondisi}</span></p>
   <table>
-    <tr><th>Indikator</th><th style="text-align:right">Nilai</th></tr>
-    <tr><td>Server fisik aktif</td><td style="text-align:right">${online.length} dari ${d.nodes.length}</td></tr>
-    <tr><td>Mesin berjalan</td><td style="text-align:right">${running.length} dari ${d.guests.length}</td></tr>
-    ${
-      d.sla && d.sla.summary.avgPct !== null
-        ? `<tr><td>SLA rata-rata bulan ini</td><td style="text-align:right">${d.sla.summary.avgPct.toFixed(2)}% (${d.sla.summary.compliant}/${d.sla.summary.tracked} memenuhi)</td></tr>`
-        : ''
-    }
-    <tr><td>Proses teknis bulan ini</td><td style="text-align:right">${d.taskTotal} (gagal: ${d.failedTasks.length})</td></tr>
-    <tr><td>Aktivitas administrasi panel</td><td style="text-align:right">${d.auditCount} aksi tercatat</td></tr>
+    <tr><th>${thIndikator}</th><th style="text-align:right">${thNilai}</th></tr>
+    <tr><td>${R.serversOnline}</td><td style="text-align:right">${online.length} ${dari} ${d.nodes.length}</td></tr>
+    <tr><td>${R.guestsRunning}</td><td style="text-align:right">${running.length} ${dari} ${d.guests.length}</td></tr>
+    ${slaRow}
+    ${overallRow}
+    <tr><td>${prosesBulan}</td><td style="text-align:right">${d.taskTotal} (${gagal}: ${d.failedTasks.length})</td></tr>
+    <tr><td>${thAktivitas}</td><td style="text-align:right">${d.auditCount} ${aksi}</td></tr>
   </table>
-  ${alasan.length ? `<p><b>Perlu diperhatikan:</b></p><ul>${alasan.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+  ${alasan.length ? `<p><b>${perluDiperhatikan}</b></p><ul>${alasan.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
 
-  <h2>B. Grafik Tren (30 hari terakhir)</h2>
-  ${chartBlock(d)}
+  <h2>${grafikTren}</h2>
+  ${chartBlock(d, locale)}
 
-  ${detailSections(d, false)
-    .replace('Kondisi Server Fisik', 'C. Kondisi Server Fisik')
-    .replace('Mesin Virtual &amp; Container', 'D. Mesin Virtual &amp; Container')
-    .replace('Kapasitas Penyimpanan', 'E. Kapasitas Penyimpanan')
-    .replace('Catatan Kejadian Penting', 'F. Catatan Kejadian Penting')}
+  ${detailSections(d, true, locale, true)}
 
-  ${slaSection(d)}
+  ${slaSection(d, locale, true)}
 
-  <h2>H. Rekomendasi Tindak Lanjut</h2>
-  <ul>${recommendationItems(d).map((r) => `<li>${r}</li>`).join('') || '<li>Semua indikator normal.</li>'}</ul>`;
+  <h2>${rekomen}</h2>
+  <ul>${recommendationItems(d, locale).map((r) => `<li>${r}</li>`).join('') || `<li>${semuaNormal}</li>`}</ul>`;
 
   return page(
-    'Laporan Bulanan Infrastruktur Virtualisasi',
-    `Cluster <b>${esc(d.cluster.name)}</b> (${esc(d.cluster.host)}) &middot; Periode <b>${BULAN[d.month]} ${d.year}</b>`,
-    body
+    R.reportTitle,
+    `${R.cluster} <b>${esc(d.cluster.name)}</b> (${esc(d.cluster.host)}) &middot; ${R.period}: <b>${R.months[d.month]} ${d.year}</b>`,
+    body,
+    locale
   );
 }
 
@@ -283,8 +360,11 @@ export interface ConsolidatedItem {
 export function buildConsolidatedReportHtml(
   year: number,
   month: number,
-  items: ConsolidatedItem[]
+  items: ConsolidatedItem[],
+  locale: ReportLocale = 'id'
 ): string {
+  const R = getReportStrings(locale);
+  const en = locale === 'en';
   const oks = items.filter((it) => it.data);
   const errs = items.filter((it) => it.error);
 
@@ -300,52 +380,52 @@ export function buildConsolidatedReportHtml(
   );
   const failTotal = oks.reduce((s, it) => s + (it.data?.failedTasks.length ?? 0), 0);
   const auditTotal = oks.reduce((s, it) => s + (it.data?.auditCount ?? 0), 0);
-  const allSlaRows = oks
-    .flatMap((it) => {
-      const s = it.data?.sla;
-      return s ? [...s.nodes, ...s.guests] : [];
-    })
-    .filter((r) => r.actualPct !== null);
-  const slaTracked = allSlaRows.length;
-  const slaCompliant = allSlaRows.filter((r) => r.status === 'ok').length;
-  const slaAvg = slaTracked
-    ? Math.round((allSlaRows.reduce((s, r) => s + (r.actualPct ?? 0), 0) / slaTracked) * 100) / 100
-    : null;
   const allStorage = oks.flatMap((it) => it.data?.storages ?? []);
   const kritis = allStorage.filter((s) => s.pct >= 85);
   const waspada = allStorage.filter((s) => s.pct >= 70 && s.pct < 85);
 
+  const allOverall = oks.map((it) => it.data?.overallSla).filter((x): x is NonNullable<typeof x> => Boolean(x));
+  const overallAvg = allOverall.length
+    ? Math.round((allOverall.reduce((s, o) => s + o.overall, 0) / allOverall.length) * 100) / 100
+    : null;
+  const overallAchieved = allOverall.filter((o) => o.achieved).length;
+
   const alasan: string[] = [];
-  if (onlineNodes < totNodes) alasan.push(`${totNodes - onlineNodes} server fisik tidak aktif`);
-  if (kritis.length) alasan.push(`${kritis.length} penyimpanan KRITIS (>85%) di seluruh cluster`);
-  if (waspada.length) alasan.push(`${waspada.length} penyimpanan mulai penuh (70-85%)`);
-  if (failTotal) alasan.push(`${failTotal} proses teknis gagal bulan ini`);
-  if (errs.length) alasan.push(`${errs.length} cluster tidak dapat dibaca datanya`);
+  if (onlineNodes < totNodes) alasan.push(`${totNodes - onlineNodes} ${R.serversOnline.toLowerCase()}`);
+  if (kritis.length) alasan.push(`${kritis.length} ${R.critical} (>85%) — ${en ? 'all clusters' : 'seluruh cluster'}`);
+  if (waspada.length) alasan.push(`${waspada.length} ${R.warning} (70-85%)`);
+  if (failTotal) alasan.push(`${failTotal} ${R.failedProcesses.toLowerCase()}`);
+  if (errs.length) alasan.push(`${errs.length} ${en ? 'cluster data unavailable' : 'cluster tidak dapat dibaca'}`);
 
   const kondisi =
-    alasan.length === 0 ? 'SEHAT' : kritis.length ? 'PERLU TINDAK LANJUT SEGERA' : 'CENDERUNG SEHAT, ADA CATATAN';
+    alasan.length === 0 ? R.healthy : kritis.length ? R.needsAction : R.generallyHealthy;
   const badgeColor =
-    kondisi === 'SEHAT' ? '#059669' : kondisi.startsWith('PERLU TINDAK') ? '#dc2626' : '#d97706';
+    kondisi === R.healthy ? '#059669' : kondisi === R.needsAction ? '#dc2626' : '#d97706';
+
+  const thIndikator = en ? 'Indicator' : 'Indikator';
+  const thNilai = en ? 'Value' : 'Nilai';
+  const clustersCovered = en ? 'Clusters covered' : 'Cluster tercakup';
+  const panelActivity = en ? 'Panel activity' : 'Aktivitas administrasi panel';
 
   let body = `
-  <h2>A. Ringkasan Gabungan untuk Pimpinan</h2>
-  <p>Kondisi umum infrastruktur: <span class="badge" style="background:${badgeColor}">${kondisi}</span></p>
+  <h2>${R.secA}</h2>
+  <p>${R.condition}: <span class="badge" style="background:${badgeColor}">${kondisi}</span></p>
   <table>
-    <tr><th>Indikator</th><th style="text-align:right">Nilai</th></tr>
-    <tr><td>Cluster tercakup</td><td style="text-align:right">${oks.length} dari ${items.length}</td></tr>
-    <tr><td>Total server fisik aktif</td><td style="text-align:right">${onlineNodes} dari ${totNodes}</td></tr>
-    <tr><td>Total mesin berjalan</td><td style="text-align:right">${runGuests} dari ${totGuests}</td></tr>
+    <tr><th>${thIndikator}</th><th style="text-align:right">${thNilai}</th></tr>
+    <tr><td>${clustersCovered}</td><td style="text-align:right">${oks.length} / ${items.length}</td></tr>
+    <tr><td>${R.serversOnline}</td><td style="text-align:right">${onlineNodes} / ${totNodes}</td></tr>
+    <tr><td>${R.guestsRunning}</td><td style="text-align:right">${runGuests} / ${totGuests}</td></tr>
     ${
-      slaTracked
-        ? `<tr><td>SLA rata-rata bulan ini</td><td style="text-align:right">${slaAvg}% (${slaCompliant}/${slaTracked} memenuhi)</td></tr>`
+      overallAvg !== null
+        ? `<tr><td>${R.sla}</td><td style="text-align:right">${overallAvg.toFixed(2)}% (${overallAchieved}/${allOverall.length} ${R.slaAchieved})</td></tr>`
         : ''
     }
-    <tr><td>Proses teknis gagal</td><td style="text-align:right">${failTotal} kejadian</td></tr>
-    <tr><td>Aktivitas administrasi panel</td><td style="text-align:right">${auditTotal} aksi tercatat</td></tr>
+    <tr><td>${R.failedProcesses}</td><td style="text-align:right">${failTotal}</td></tr>
+    <tr><td>${panelActivity}</td><td style="text-align:right">${auditTotal}</td></tr>
   </table>
-  ${alasan.length ? `<p><b>Perlu diperhatikan:</b></p><ul>${alasan.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-  ${errs.map((it) => `<div class="errbox">Cluster <b>${esc(it.cluster.name)}</b> gagal dibaca: ${esc(it.error ?? '?')}</div>`).join('')}
-  <h2>B. Grafik Tren per Cluster (30 hari terakhir)</h2>`;
+  ${alasan.length ? `<p><b>${R.attention}</b></p><ul>${alasan.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+  ${errs.map((it) => `<div class="errbox"><b>${esc(it.cluster.name)}</b>: ${esc(it.error ?? '?')}</div>`).join('')}
+  <h2>${R.secB} (${R.period}: ${R.months[month]} ${year})</h2>`;
 
   oks.forEach((it, idx) => {
     const d = it.data!;
@@ -353,26 +433,27 @@ export function buildConsolidatedReportHtml(
     <h3 style="font-size:15px;margin-top:20px;border-left:4px solid #f97316;padding-left:10px">${idx + 1}. ${esc(
       d.cluster.name
     )} <span style="font-weight:400;color:#64748b">(${esc(d.cluster.host)})</span></h3>
-    ${chartBlock(d)}
-    ${detailSections(d)}
-    ${slaSection(d, false)}`;
+    ${chartBlock(d, locale)}
+    ${detailSections(d, true, locale, false)}
+    ${slaSection(d, locale, false)}`;
     if (d.auditTop.length) {
-      body += `<p style="font-size:12.5px;color:#475569"><b>Aktivitas panel:</b> ${d.auditCount} aksi — ${d.auditTop
+      body += `<p style="font-size:12.5px;color:#475569"><b>${R.auditActions.replace('{n}', String(d.auditCount))}:</b> ${d.auditTop
         .map(([a, c]) => `${esc(a)} (${c})`)
         .join(', ')}</p>`;
     }
   });
 
   const allRecs = oks.flatMap((it) =>
-    recommendationItems(it.data!).map((r) => `[${esc(it.cluster.name)}] ${r}`)
+    recommendationItems(it.data!, locale).map((r) => `[${esc(it.cluster.name)}] ${r}`)
   );
-  body += `<h2>C. Rekomendasi Tindak Lanjut Gabungan</h2><ul>${
-    allRecs.map((r) => `<li>${r}</li>`).join('') || '<li>Semua indikator normal.</li>'
+  body += `<h2>${R.secF}</h2><ul>${
+    allRecs.map((r) => `<li>${r}</li>`).join('') || `<li>${R.noRec}</li>`
   }</ul>`;
 
   return page(
-    'Laporan Bulanan Virtualisasi — Seluruh Cluster',
-    `Konsolidasi ${items.length} cluster &middot; Periode <b>${BULAN[month]} ${year}</b>`,
-    body
+    R.reportTitle,
+    `${en ? 'All Clusters' : 'Seluruh Cluster'} (${items.length}) &middot; ${R.period}: ${bulan(month, locale)} ${year}`,
+    body,
+    locale
   );
 }

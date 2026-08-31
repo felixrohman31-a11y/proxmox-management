@@ -30,7 +30,9 @@ export async function readAudit(limit = 200): Promise<AuditEntry[]> {
     const out: AuditEntry[] = [];
     for (const line of lines.slice(-limit)) {
       try {
-        out.push(JSON.parse(line) as AuditEntry);
+        const parsed = JSON.parse(line);
+        if (Array.isArray(parsed)) continue;
+        out.push(parsed as AuditEntry);
       } catch {
         // lewati baris rusak
       }

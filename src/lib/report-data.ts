@@ -3,6 +3,16 @@ import { getPveClient } from './pve';
 import { readAudit } from './audit';
 import { slaForCluster, type ClusterSla } from './sla';
 
+export interface OverallSla {
+  nodePct: number;
+  guestPct: number;
+  taskPct: number;
+  overall: number;
+  level: 'excellent' | 'good' | 'warning' | 'critical';
+  target: number;
+  achieved: boolean;
+}
+
 export interface MonthlyData {
   cluster: PublicCluster;
   year: number;
@@ -16,6 +26,7 @@ export interface MonthlyData {
   auditTop: Array<[string, number]>;
   nodeSeries: Record<string, ChartRow[]>;
   sla: ClusterSla | null;
+  overallSla: OverallSla;
 }
 
 export interface NodeSummary {
@@ -137,7 +148,7 @@ export async function gatherMonthlyData(
     }));
 
   const auditMonth = (await readAudit(2000)).filter((a) =>
-    a.ts.startsWith(`${year}-${String(month).padStart(2, '0')}`)
+    String(a.ts ?? '').startsWith(`${year}-${String(month).padStart(2, '0')}`)
   );
   const perAction = new Map<string, number>();
   for (const a of auditMonth) perAction.set(a.action, (perAction.get(a.action) ?? 0) + 1);
@@ -170,6 +181,27 @@ export async function gatherMonthlyData(
     sla = null;
   }
 
+  const onlineCount = nodes.filter((n) => n.status === 'online').length;
+  const guestTotal = guests.filter((g) => g.status !== 'template').length;
+  const runningCount = guests.filter((g) => g.status === 'BERJALAN').length;
+  const nodePct = nodes.length ? (onlineCount / nodes.length) * 100 : 100;
+  const guestPct = guestTotal ? (runningCount / guestTotal) * 100 : 100;
+  const taskPct = monthTasks.length ? ((monthTasks.length - failedTasks.length) / monthTasks.length) * 100 : 100;
+  const overall = nodePct * 0.5 + guestPct * 0.3 + taskPct * 0.2;
+  const slaTarget = 99.5;
+  const level: OverallSla['level'] =
+    overall >= 99.9 ? 'excellent' : overall >= 99.0 ? 'good' : overall >= 98.0 ? 'warning' : 'critical';
+
+  const overallSla: OverallSla = {
+    nodePct: Math.round(nodePct * 100) / 100,
+    guestPct: Math.round(guestPct * 100) / 100,
+    taskPct: Math.round(taskPct * 100) / 100,
+    overall: Math.round(overall * 100) / 100,
+    level,
+    target: slaTarget,
+    achieved: overall >= slaTarget
+  };
+
   return {
     cluster,
     year,
@@ -182,6 +214,7 @@ export async function gatherMonthlyData(
     auditCount: auditMonth.length,
     auditTop,
     nodeSeries,
-    sla
+    sla,
+    overallSla
   };
 }

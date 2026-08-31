@@ -53,9 +53,9 @@ export default function AuditTable() {
     const needle = q.trim().toLowerCase();
     if (!needle) return true;
     return (
-      r.action.toLowerCase().includes(needle) ||
-      r.user.toLowerCase().includes(needle) ||
-      r.target.toLowerCase().includes(needle)
+      String(r.action ?? '').toLowerCase().includes(needle) ||
+      String(r.user ?? '').toLowerCase().includes(needle) ||
+      String(r.target ?? '').toLowerCase().includes(needle)
     );
   });
 
@@ -125,7 +125,7 @@ export default function AuditTable() {
 }
 
 function escUser(u: string): string {
-  return u.replace(/[<>&]/g, '');
+  return String(u ?? '').replace(/[<>&]/g, '');
 }
 
 function Th({ children }: { children?: React.ReactNode }) {

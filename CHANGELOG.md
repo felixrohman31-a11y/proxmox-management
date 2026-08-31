@@ -13,10 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Halaman dashboard baru **SLA Monitoring** (`/dashboard/sla`): ringkasan (rata-rata ketersediaan, kepatuhan, terendah, total downtime), tabel node & guest, editor target inline dengan reset
 - API baru: `GET /api/sla/[id]` (hitung SLA per cluster per periode) dan `POST /api/sla/[id]` (atur/hapus target default & per-entitas, tercatat di audit log)
 - **SLA masuk ke Laporan Bulanan** (TXT & HTML, per cluster maupun konsolidasi): baris ringkasan di seksi eksekutif + seksi SLA lengkap dengan tabel node/guest
+- Laporan HTML kini **locale-aware penuh** (ID/EN): judul, tabel, grafik, tombol cetak, dan footer mengikuti bahasa — parameter `?locale=` pada endpoint laporan, dikirim otomatis oleh komponen unduh sesuai bahasa panel
+- Blok **SLA Keseluruhan** (bobot 50% node + 30% guest + 20% task, target 99.5%) pada ringkasan laporan TXT & HTML
 - Dukungan i18n penuh (ID/EN) untuk seluruh teks SLA
 - Unit test perhitungan ketersediaan & validasi target (`src/lib/sla.test.ts`)
 
 ### Fixed
+- `readAudit()` melewati baris audit berbentuk array (korup) dan filter periode kini null-safe
+- `AuditTable` aman terhadap field null pada action/user/target
+- Karakter UTF-8 yang rusak (em-dash/ellipsis → `???`) pada salinan produksi dibersihkan kembali ke karakter asli
 - `package.json` version disamakan dengan tag release (0.1.0 → 1.2.1)
 
 ## [1.2.0] - 2026-08-29

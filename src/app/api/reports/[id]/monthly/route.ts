@@ -25,6 +25,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   const format = req.nextUrl.searchParams.get('format') === 'txt' ? 'txt' : 'html';
   const inline = req.nextUrl.searchParams.get('view') === '1';
   const isAll = ctx.params.id === 'all';
+  const locale = (req.nextUrl.searchParams.get('locale') ?? 'id') as 'id' | 'en';
 
   try {
     if (!isAll) {
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
       }
       if (format === 'txt') {
-        const { filename, content } = await buildMonthlyReport(cluster, y, m);
+        const { filename, content } = await buildMonthlyReport(cluster, y, m, locale);
         return new NextResponse(content, {
           status: 200,
           headers: {
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         });
       }
       const data = await gatherMonthlyData(cluster, y, m);
-      return htmlResponse(buildMonthlyReportHtml(data), cluster.name, y, m, inline);
+      return htmlResponse(buildMonthlyReportHtml(data, locale), cluster.name, y, m, inline);
     }
 
     // ===== mode gabungan seluruh cluster =====
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
           parts.push(`##### ${it.cluster.name} — GAGAL: ${it.error} #####`);
           continue;
         }
-        const { content } = await buildMonthlyReport(it.cluster, y, m);
+        const { content } = await buildMonthlyReport(it.cluster, y, m, locale);
         parts.push(`########## CLUSTER: ${it.cluster.name} ##########\r\n\r\n${content}`);
       }
       return new NextResponse(parts.join('\r\n\r\n'), {
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
       });
     }
 
-    return htmlResponse(buildConsolidatedReportHtml(y, m, items), 'Semua-Cluster', y, m, inline);
+    return htmlResponse(buildConsolidatedReportHtml(y, m, items, locale), 'Semua-Cluster', y, m, inline);
   } catch (e) {
     return NextResponse.json({ error: `Gagal membuat laporan: ${(e as Error).message}` }, { status: 502 });
   }

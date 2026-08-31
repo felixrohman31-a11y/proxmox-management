@@ -95,7 +95,7 @@ export async function buildMonthlyReport(
   const monthTasks = allTasks.filter((t) => (t.starttime ?? 0) >= startEpoch && (t.starttime ?? 0) < endEpoch);
   const failedTasks = monthTasks.filter((t) => t.status && !String(t.status).toUpperCase().includes('OK'));
 
-  const auditMonth = (await readAudit(2000)).filter((a) => a.ts.startsWith(`${year}-${String(month).padStart(2, '0')}`));
+  const auditMonth = (await readAudit(2000)).filter((a) => String(a.ts ?? '').startsWith(`${year}-${String(month).padStart(2, '0')}`));
 
   let sla: ClusterSla | null = null;
   try {
@@ -127,6 +127,14 @@ export async function buildMonthlyReport(
   const kondisi =
     reasons.length === 0 ? R.healthy : kritisStorage.length ? R.needsAction : R.generallyHealthy;
 
+  const nodeSla = nodes.length ? (onlineNodes.length / nodes.length) * 100 : 100;
+  const guestTotal = guests.filter((g) => !g.template).length;
+  const guestSla = guestTotal ? (runningGuests.length / guestTotal) * 100 : 100;
+  const taskSla = monthTasks.length ? ((monthTasks.length - failedTasks.length) / monthTasks.length) * 100 : 100;
+  const slaOverall = nodeSla * 0.5 + guestSla * 0.3 + taskSla * 0.2;
+  const slaTarget = 99.5;
+  const slaLevel = slaOverall >= 99.9 ? 'EXCELLENT' : slaOverall >= 99.0 ? 'GOOD' : slaOverall >= 98.0 ? 'WARNING' : 'CRITICAL';
+
   const L: string[] = [];
   const garis = '='.repeat(64);
   L.push(garis);
@@ -138,6 +146,10 @@ export async function buildMonthlyReport(
   L.push('');
   L.push(R.secA);
   L.push(`   ${R.condition}: ${kondisi}`);
+  L.push(`   ${R.sla}: ${slaOverall.toFixed(2)}% (${R.slaTarget} ${slaTarget.toFixed(1)}% — ${slaOverall >= slaTarget ? R.slaAchieved : R.slaNotAchieved} / ${slaLevel})`);
+  L.push(`     - ${R.slaNode}: ${nodeSla.toFixed(2)}%`);
+  L.push(`     - ${R.slaGuest}: ${guestSla.toFixed(2)}%`);
+  L.push(`     - ${R.slaTask}: ${taskSla.toFixed(2)}%`);
   L.push(`   ${R.serversOnline}: ${onlineNodes.length} / ${nodes.length}`);
   L.push(`   ${R.guestsRunning}: ${runningGuests.length} / ${guests.length} (${stoppedGuests.length} ${R.guestsStopped})`);
   L.push(`   ${R.failedProcesses}: ${failedTasks.length} ${R.incidents}`);

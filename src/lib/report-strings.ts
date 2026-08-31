@@ -88,7 +88,14 @@ export function getReportStrings(locale: ReportLocale) {
     slaHtmlDowntime: en ? 'Downtime' : 'Downtime',
     slaHtmlStatus: en ? 'Status' : 'Status',
     slaHtmlNodes: en ? 'Physical nodes' : 'Node fisik',
-    slaHtmlGuests: en ? 'VMs & containers (lowest first, max 15)' : 'VM & container (terendah dulu, maks 15)'
+    slaHtmlGuests: en ? 'VMs & containers (lowest first, max 15)' : 'VM & container (terendah dulu, maks 15)',
+    sla: en ? 'Overall SLA' : 'SLA Keseluruhan',
+    slaTarget: en ? 'target' : 'target',
+    slaAchieved: en ? 'achieved' : 'tercapai',
+    slaNotAchieved: en ? 'not achieved' : 'tidak tercapai',
+    slaNode: en ? 'Node SLA' : 'SLA Node',
+    slaGuest: en ? 'Guest SLA' : 'SLA Guest',
+    slaTask: en ? 'Task SLA' : 'SLA Task'
   };
 }
 
