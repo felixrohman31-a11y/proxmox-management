@@ -1,6 +1,7 @@
 import { getPveClient, PveError } from './pve';
 import { readAudit } from './audit';
 import { getReportStrings } from './report-strings';
+import { slaForCluster, fmtDowntime, type ClusterSla } from './sla';
 type ReportStrings = ReturnType<typeof getReportStrings>;
 import type { PublicCluster } from '@/types';
 
@@ -96,6 +97,13 @@ export async function buildMonthlyReport(
 
   const auditMonth = (await readAudit(2000)).filter((a) => a.ts.startsWith(`${year}-${String(month).padStart(2, '0')}`));
 
+  let sla: ClusterSla | null = null;
+  try {
+    sla = await slaForCluster(cluster, year, month);
+  } catch {
+    sla = null;
+  }
+
   const onlineNodes = nodes.filter((n) => n.status === 'online');
   const runningGuests = guests.filter((g) => !g.template && g.status === 'running');
   const stoppedGuests = guests.filter((g) => !g.template && g.status !== 'running');
@@ -133,6 +141,14 @@ export async function buildMonthlyReport(
   L.push(`   ${R.serversOnline}: ${onlineNodes.length} / ${nodes.length}`);
   L.push(`   ${R.guestsRunning}: ${runningGuests.length} / ${guests.length} (${stoppedGuests.length} ${R.guestsStopped})`);
   L.push(`   ${R.failedProcesses}: ${failedTasks.length} ${R.incidents}`);
+  {
+    const avg = sla?.summary.avgPct ?? null;
+    const slaVal =
+      avg === null
+        ? R.slaNoDataShort
+        : `${avg.toFixed(2)}% (${sla!.summary.compliant}/${sla!.summary.tracked} ${R.slaCompliant.toLowerCase()})`;
+    L.push(`   ${R.slaIndicator}: ${slaVal}`);
+  }
   if (reasons.length) {
     L.push(`   ${R.attention}`);
     for (const a of reasons) L.push(`     - ${a}`);
@@ -205,6 +221,51 @@ export async function buildMonthlyReport(
   L.push('');
 
   L.push(R.secG);
+  if (!sla || !sla.summary.tracked) {
+    L.push(`   ${R.slaNone}`);
+  } else {
+    L.push(
+      `   ${R.slaSummaryLine
+        .replace('{avg}', sla.summary.avgPct === null ? '-' : sla.summary.avgPct.toFixed(2))
+        .replace('{ok}', String(sla.summary.compliant))
+        .replace('{n}', String(sla.summary.tracked))
+        .replace('{breach}', String(sla.summary.breach))}`
+    );
+    L.push('');
+    L.push(`   ${R.slaHtmlNodes}:`);
+    for (const n of sla.nodes) {
+      const actual = n.actualPct === null ? R.slaNoDataShort : `${n.actualPct.toFixed(2)}%`;
+      L.push(
+        `   ${R.slaNodeLine
+          .replace('{name}', n.name)
+          .replace('{target}', n.target.toFixed(2))
+          .replace('{actual}', actual)
+          .replace('{down}', fmtDowntime(n.downtimeMin, en))}`
+      );
+    }
+    L.push('');
+    L.push(`   ${R.slaWorstNote}`);
+    const worst = [...sla.guests]
+      .sort((a, b) => (a.actualPct ?? 999) - (b.actualPct ?? 999))
+      .slice(0, 15);
+    for (const g of worst) {
+      const actual = g.actualPct === null ? R.slaNoDataShort : `${g.actualPct.toFixed(2)}%`;
+      L.push(
+        `   ${R.slaGuestLine
+          .replace('{name}', g.name)
+          .replace('{vmid}', String(g.vmid ?? '-'))
+          .replace('{node}', g.node)
+          .replace('{target}', g.target.toFixed(2))
+          .replace('{actual}', actual)
+          .replace('{down}', fmtDowntime(g.downtimeMin, en))}`
+      );
+    }
+    const hidden = sla.guests.length - worst.length;
+    if (hidden > 0) L.push(`   ... ${R.moreEvents.replace('{n}', String(hidden))}`);
+  }
+  L.push('');
+
+  L.push(R.secH);
   L.push(`   ${R.auditActions.replace('{n}', String(auditMonth.length))}`);
   const perAction = new Map<string, number>();
   for (const a of auditMonth) perAction.set(a.action, (perAction.get(a.action) ?? 0) + 1);

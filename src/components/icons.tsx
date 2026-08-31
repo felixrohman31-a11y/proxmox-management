@@ -218,6 +218,15 @@ export function ChartIcon(p: IconProps) {
   );
 }
 
+export function ShieldIcon(p: IconProps) {
+  return (
+    <Base {...p}>
+      <path d="M12 3l7 3v5c0 4.6-3 8.6-7 10-4-1.4-7-5.4-7-10V6l7-3z" />
+      <path d="M9.5 12l1.8 1.8L15 10" />
+    </Base>
+  );
+}
+
 export function GearIcon(p: IconProps) {
   return (
     <Base {...p}>

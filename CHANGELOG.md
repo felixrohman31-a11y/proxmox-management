@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-08-31
+
+### Added
+- Fitur **SLA Monitoring**: target ketersediaan per VM/container dan node fisik (default 99.9%, bisa diatur khusus per entitas)
+- Perhitungan SLA bulanan otomatis dari rrddata Proxmox — gap antar sampel dalam periode dianggap downtime; guest yang saat ini mati dihitung hanya sampai sampel terakhir
+- Halaman dashboard baru **SLA Monitoring** (`/dashboard/sla`): ringkasan (rata-rata ketersediaan, kepatuhan, terendah, total downtime), tabel node & guest, editor target inline dengan reset
+- API baru: `GET /api/sla/[id]` (hitung SLA per cluster per periode) dan `POST /api/sla/[id]` (atur/hapus target default & per-entitas, tercatat di audit log)
+- **SLA masuk ke Laporan Bulanan** (TXT & HTML, per cluster maupun konsolidasi): baris ringkasan di seksi eksekutif + seksi SLA lengkap dengan tabel node/guest
+- Dukungan i18n penuh (ID/EN) untuk seluruh teks SLA
+- Unit test perhitungan ketersediaan & validasi target (`src/lib/sla.test.ts`)
+
+### Fixed
+- `package.json` version disamakan dengan tag release (0.1.0 → 1.2.1)
+
 ## [1.2.0] - 2026-08-29
 
 ### Security

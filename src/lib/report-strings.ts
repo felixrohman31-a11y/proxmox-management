@@ -14,7 +14,8 @@ export function getReportStrings(locale: ReportLocale) {
     secD: en ? 'D. STORAGE CAPACITY' : 'D. KAPASITAS PENYIMPANAN',
     secE: en ? 'E. IMPORTANT EVENTS' : 'E. CATATAN KEJADIAN PENTING',
     secF: en ? 'F. RECOMMENDATIONS' : 'F. REKOMENDASI TINDAK LANJUT',
-    secG: en ? 'G. APPENDIX: PANEL ADMIN ACTIVITY' : 'G. LAMPIRAN: AKTIVITAS ADMINISTRASI PANEL',
+    secG: en ? 'G. SERVICE LEVEL AGREEMENT (SLA)' : 'G. SERVICE LEVEL AGREEMENT (SLA)',
+    secH: en ? 'H. APPENDIX: PANEL ADMIN ACTIVITY' : 'H. LAMPIRAN: AKTIVITAS ADMINISTRASI PANEL',
     condition: en ? 'Overall infrastructure condition' : 'Kondisi umum infrastruktur',
     healthy: en ? 'HEALTHY' : 'SEHAT',
     generallyHealthy: en ? 'GENERALLY HEALTHY, WITH NOTES' : 'CENDERUNG SEHAT, ADA CATATAN',
@@ -66,6 +67,28 @@ export function getReportStrings(locale: ReportLocale) {
     noStorageData: en ? 'No storage data available.' : 'Tidak ada data penyimpanan.',
     noGuestsMsg: en ? 'No VMs/containers on this cluster.' : 'Belum ada VM/container pada cluster ini.',
     taskFailPrefix: en ? 'Failed:' : 'Gagal:',
+    slaIndicator: en ? 'Service availability (SLA)' : 'Ketersediaan layanan (SLA)',
+    slaSummaryLine: en
+      ? 'Average availability {avg}% — {ok}/{n} entities meet their target, {breach} in breach.'
+      : 'Rata-rata ketersediaan {avg}% — {ok}/{n} entitas memenuhi target, {breach} melanggar.',
+    slaNone: en ? 'No SLA data available for this period.' : 'Belum ada data SLA untuk periode ini.',
+    slaNodeLine: en
+      ? '- Node {name}: target {target}%, actual {actual}%, downtime {down}'
+      : '- Node {name}: target {target}%, aktual {actual}%, downtime {down}',
+    slaGuestLine: en
+      ? '- {name} (ID {vmid}, {node}): target {target}%, actual {actual}%, downtime {down}'
+      : '- {name} (ID {vmid}, {node}): target {target}%, aktual {actual}%, downtime {down}',
+    slaCompliant: en ? 'Compliant' : 'Memenuhi',
+    slaBreach: en ? 'BREACH' : 'MELANGGAR',
+    slaNoDataShort: en ? 'no data' : 'tidak ada data',
+    slaWorstNote: en ? 'Entities with the lowest availability:' : 'Entitas dengan ketersediaan terendah:',
+    slaHtmlSummary: en ? 'Average SLA this month' : 'SLA rata-rata bulan ini',
+    slaHtmlTarget: en ? 'Target' : 'Target',
+    slaHtmlActual: en ? 'Actual' : 'Aktual',
+    slaHtmlDowntime: en ? 'Downtime' : 'Downtime',
+    slaHtmlStatus: en ? 'Status' : 'Status',
+    slaHtmlNodes: en ? 'Physical nodes' : 'Node fisik',
+    slaHtmlGuests: en ? 'VMs & containers (lowest first, max 15)' : 'VM & container (terendah dulu, maks 15)'
   };
 }
 

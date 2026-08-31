@@ -1,5 +1,6 @@
 import { fmtBytesShort, svgAreaChart } from './report-svg';
 import type { MonthlyData } from './report-data';
+import { fmtDowntime, type SlaRow } from './sla';
 import type { PublicCluster } from '@/types';
 
 function esc(s: string): string {
@@ -125,6 +126,42 @@ function recommendationItems(d: MonthlyData): string[] {
   return out;
 }
 
+function slaSection(d: MonthlyData, withLetter = true): string {
+  if (!d.sla) return '';
+  const s = d.sla;
+  const title = withLetter
+    ? '<h2>G. Service Level Agreement (SLA)</h2>'
+    : '<h3 style="font-size:14px;margin-top:14px;color:#334155">Service Level Agreement (SLA)</h3>';
+  if (!s.summary.tracked) return `${title}<p>Belum ada data SLA untuk periode ini.</p>`;
+
+  const statusCell = (r: SlaRow) =>
+    r.status === 'ok'
+      ? '<span style="color:#059669;font-weight:600">MEMENUHI</span>'
+      : r.status === 'breach'
+        ? '<span style="color:#dc2626;font-weight:600">MELANGGAR</span>'
+        : '<span style="color:#64748b">tidak ada data</span>';
+
+  const table = (rows: SlaRow[], worstFirst = false) => {
+    const list = worstFirst
+      ? [...rows].sort((a, b) => (a.actualPct ?? 999) - (b.actualPct ?? 999)).slice(0, 15)
+      : rows;
+    const trs = list
+      .map(
+        (r) => `<tr><td><b>${esc(r.name)}</b>${r.vmid != null ? ` <span style="color:#64748b">(${r.vmid})</span>` : ''}</td><td>${esc(r.node)}</td><td style="text-align:right">${r.target.toFixed(2)}%</td><td style="text-align:right">${r.actualPct === null ? '—' : `${r.actualPct.toFixed(2)}%`}</td><td style="text-align:right">${fmtDowntime(r.downtimeMin, false)}</td><td>${statusCell(r)}</td></tr>`
+      )
+      .join('');
+    return `<table><tr><th>Nama</th><th>Node</th><th style="text-align:right">Target</th><th style="text-align:right">Aktual</th><th style="text-align:right">Downtime</th><th>Status</th></tr>${trs}</table>`;
+  };
+
+  return `${title}
+  <p>Rata-rata ketersediaan <b>${s.summary.avgPct === null ? '—' : `${s.summary.avgPct.toFixed(2)}%`}</b> — ${s.summary.compliant} dari ${s.summary.tracked} entitas memenuhi target, ${s.summary.breach} melanggar. Total downtime: <b>${fmtDowntime(s.summary.totalDowntimeMin, false)}</b>.</p>
+  <p style="margin-bottom:4px"><b>Node fisik:</b></p>
+  ${table(s.nodes)}
+  <p style="margin:10px 0 4px"><b>VM &amp; container (ketersediaan terendah dulu, maks 15):</b></p>
+  ${table(s.guests, true)}
+  <p style="font-size:11.5px;color:#94a3b8">Dihitung dari data monitoring Proxmox ±30 hari terakhir; gap sampel dianggap downtime.</p>`;
+}
+
 function detailSections(d: MonthlyData, withTitles = true): string {
   const t = (s: string) => (withTitles ? `<h2>${s}</h2>` : '');
   return `
@@ -206,6 +243,11 @@ export function buildMonthlyReportHtml(d: MonthlyData): string {
     <tr><th>Indikator</th><th style="text-align:right">Nilai</th></tr>
     <tr><td>Server fisik aktif</td><td style="text-align:right">${online.length} dari ${d.nodes.length}</td></tr>
     <tr><td>Mesin berjalan</td><td style="text-align:right">${running.length} dari ${d.guests.length}</td></tr>
+    ${
+      d.sla && d.sla.summary.avgPct !== null
+        ? `<tr><td>SLA rata-rata bulan ini</td><td style="text-align:right">${d.sla.summary.avgPct.toFixed(2)}% (${d.sla.summary.compliant}/${d.sla.summary.tracked} memenuhi)</td></tr>`
+        : ''
+    }
     <tr><td>Proses teknis bulan ini</td><td style="text-align:right">${d.taskTotal} (gagal: ${d.failedTasks.length})</td></tr>
     <tr><td>Aktivitas administrasi panel</td><td style="text-align:right">${d.auditCount} aksi tercatat</td></tr>
   </table>
@@ -220,7 +262,9 @@ export function buildMonthlyReportHtml(d: MonthlyData): string {
     .replace('Kapasitas Penyimpanan', 'E. Kapasitas Penyimpanan')
     .replace('Catatan Kejadian Penting', 'F. Catatan Kejadian Penting')}
 
-  <h2>G. Rekomendasi Tindak Lanjut</h2>
+  ${slaSection(d)}
+
+  <h2>H. Rekomendasi Tindak Lanjut</h2>
   <ul>${recommendationItems(d).map((r) => `<li>${r}</li>`).join('') || '<li>Semua indikator normal.</li>'}</ul>`;
 
   return page(
@@ -256,6 +300,17 @@ export function buildConsolidatedReportHtml(
   );
   const failTotal = oks.reduce((s, it) => s + (it.data?.failedTasks.length ?? 0), 0);
   const auditTotal = oks.reduce((s, it) => s + (it.data?.auditCount ?? 0), 0);
+  const allSlaRows = oks
+    .flatMap((it) => {
+      const s = it.data?.sla;
+      return s ? [...s.nodes, ...s.guests] : [];
+    })
+    .filter((r) => r.actualPct !== null);
+  const slaTracked = allSlaRows.length;
+  const slaCompliant = allSlaRows.filter((r) => r.status === 'ok').length;
+  const slaAvg = slaTracked
+    ? Math.round((allSlaRows.reduce((s, r) => s + (r.actualPct ?? 0), 0) / slaTracked) * 100) / 100
+    : null;
   const allStorage = oks.flatMap((it) => it.data?.storages ?? []);
   const kritis = allStorage.filter((s) => s.pct >= 85);
   const waspada = allStorage.filter((s) => s.pct >= 70 && s.pct < 85);
@@ -280,6 +335,11 @@ export function buildConsolidatedReportHtml(
     <tr><td>Cluster tercakup</td><td style="text-align:right">${oks.length} dari ${items.length}</td></tr>
     <tr><td>Total server fisik aktif</td><td style="text-align:right">${onlineNodes} dari ${totNodes}</td></tr>
     <tr><td>Total mesin berjalan</td><td style="text-align:right">${runGuests} dari ${totGuests}</td></tr>
+    ${
+      slaTracked
+        ? `<tr><td>SLA rata-rata bulan ini</td><td style="text-align:right">${slaAvg}% (${slaCompliant}/${slaTracked} memenuhi)</td></tr>`
+        : ''
+    }
     <tr><td>Proses teknis gagal</td><td style="text-align:right">${failTotal} kejadian</td></tr>
     <tr><td>Aktivitas administrasi panel</td><td style="text-align:right">${auditTotal} aksi tercatat</td></tr>
   </table>
@@ -294,7 +354,8 @@ export function buildConsolidatedReportHtml(
       d.cluster.name
     )} <span style="font-weight:400;color:#64748b">(${esc(d.cluster.host)})</span></h3>
     ${chartBlock(d)}
-    ${detailSections(d)}`;
+    ${detailSections(d)}
+    ${slaSection(d, false)}`;
     if (d.auditTop.length) {
       body += `<p style="font-size:12.5px;color:#475569"><b>Aktivitas panel:</b> ${d.auditCount} aksi — ${d.auditTop
         .map(([a, c]) => `${esc(a)} (${c})`)

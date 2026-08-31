@@ -10,7 +10,8 @@ import {
   GridIcon,
   LayersIcon,
   LogoutIcon,
-  PlusIcon
+  PlusIcon,
+  ShieldIcon
 } from './icons';
 import { useL } from './lang-context';
 
@@ -33,6 +34,7 @@ export function Sidebar({ username }: { username: string }) {
     { href: '/dashboard/create', label: L.nav.create, icon: PlusIcon },
     { href: '/dashboard/backup', label: L.nav.backup, icon: ArchiveIcon },
     { href: '/dashboard/graphs', label: L.nav.graphs, icon: ChartIcon },
+    { href: '/dashboard/sla', label: L.nav.sla, icon: ShieldIcon },
     { href: '/dashboard/clusters', label: L.nav.clusters, icon: LayersIcon },
     { href: '/dashboard/settings', label: L.nav.settings, icon: GearIcon }
   ];

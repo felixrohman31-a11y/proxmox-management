@@ -1,6 +1,7 @@
 import type { PublicCluster } from '@/types';
 import { getPveClient } from './pve';
 import { readAudit } from './audit';
+import { slaForCluster, type ClusterSla } from './sla';
 
 export interface MonthlyData {
   cluster: PublicCluster;
@@ -14,6 +15,7 @@ export interface MonthlyData {
   auditCount: number;
   auditTop: Array<[string, number]>;
   nodeSeries: Record<string, ChartRow[]>;
+  sla: ClusterSla | null;
 }
 
 export interface NodeSummary {
@@ -161,6 +163,13 @@ export async function gatherMonthlyData(
     })
   );
 
+  let sla: ClusterSla | null = null;
+  try {
+    sla = await slaForCluster(cluster, year, month);
+  } catch {
+    sla = null;
+  }
+
   return {
     cluster,
     year,
@@ -172,6 +181,7 @@ export async function gatherMonthlyData(
     taskTotal: monthTasks.length,
     auditCount: auditMonth.length,
     auditTop,
-    nodeSeries
+    nodeSeries,
+    sla
   };
 }
