@@ -1,8 +1,4 @@
 import https from 'https';
-import { execFile } from 'child_process';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import { randomUUID } from 'crypto';
 import { getStoredCluster } from './store';
 import { decryptString } from './crypto-store';
@@ -135,7 +131,7 @@ export class PveClient {
         insecure: this.conn.insecure
       });
     } catch (e) {
-      throw new PveError(`Tidak dapat menghubungi ${this.conn.host}:${this.conn.port} â€” ${(e as Error).message}`, 504);
+      throw new PveError(`Tidak dapat menghubungi ${this.conn.host}:${this.conn.port} — ${(e as Error).message}`, 504);
     }
     const d = res.data as { data?: { ticket?: string; CSRFPreventionToken?: string } } | null;
     if (res.status !== 200 || !d?.data?.ticket) {
@@ -143,7 +139,7 @@ export class PveClient {
         extractErrorMessage(
           d,
           res.status === 401
-            ? 'Autentikasi Proxmox ditolak â€” periksa username/password.'
+            ? 'Autentikasi Proxmox ditolak — periksa username/password.'
             : `Login gagal ke ${this.conn.host}:${this.conn.port} (HTTP ${res.status}).`
         ),
         res.status || 504
@@ -206,7 +202,7 @@ export class PveClient {
         insecure: this.conn.insecure
       });
     } catch (e) {
-      throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal â€” ${(e as Error).message}`, 504);
+      throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
     }
 
     if (!usingToken && res.status === 401 && options.retry !== false) {
@@ -220,7 +216,7 @@ export class PveClient {
           insecure: this.conn.insecure
         });
       } catch (e) {
-        throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal â€” ${(e as Error).message}`, 504);
+        throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
       }
     }
 
@@ -246,69 +242,52 @@ export class PveClient {
     contentType: 'iso',
     fileBuffer: Buffer
   ): Promise<unknown> {
-    const t = await this.ticket();
+    // Multipart/form-data native (tanpa binary curl) — lihat CHANGELOG 1.2.0.
+    const boundary = `----ProxCenter${randomUUID().replace(/-/g, '')}`;
+    const headerBlock = Buffer.from(
+      `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="content"\r\n\r\n${contentType}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Disposition: form-data; name="filename"; filename="${filename.replace(/"/g, '')}"\r\n` +
+        `Content-Type: application/octet-stream\r\n\r\n`,
+      'utf8'
+    );
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+    const body = Buffer.concat([headerBlock, fileBuffer, footer]);
 
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `proxmox-management-${randomUUID()}.upload`);
-    fs.writeFileSync(tmpFile, fileBuffer);
+    const usingToken = this.conn.authMode === 'token';
+    const headers: Record<string, string> = { 'Content-Type': `multipart/form-data; boundary=${boundary}` };
+    if (usingToken) {
+      headers.Authorization = `PVEAPIToken=${this.conn.token ?? ''}`;
+    } else {
+      const t = await this.ticket();
+      headers.Cookie = `PVEAuthCookie=${t.ticket}`;
+      if (t.csrf) headers.CSRFPreventionToken = decodeURIComponent(t.csrf);
+    }
 
-    const url =
-      `https://${this.conn.host}:${this.conn.port}/api2/json/nodes/` +
-      `${encodeURIComponent(node)}/storage/${encodeURIComponent(storageName)}/upload`;
+    const uploadPath =
+      `/api2/json/nodes/${encodeURIComponent(node)}/storage/` +
+      `${encodeURIComponent(storageName)}/upload`;
 
-    const args = [
-      '-k',
-      '-s',
-      '-m',
-      '600',
-      '-X',
-      'POST',
-      url,
-      '-H',
-      `Cookie: PVEAuthCookie=${t.ticket}`,
-      '-H',
-      `CSRFPreventionToken: ${t.csrf}`,
-      '-F',
-      `content=${contentType}`,
-      '-F',
-      `filename=@${tmpFile};filename=${filename}`
-    ];
-
-    return new Promise<unknown>((resolve, reject) => {
-      execFile('curl', args, { timeout: 600000, maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
-        try {
-          fs.unlinkSync(tmpFile);
-        } catch {
-          // abaikan kegagalan hapus temp
-        }
-        if (err && !stdout) {
-          reject(new PveError(`Upload gagal: ${(err as Error).message}`, 502));
-          return;
-        }
-        let status = 200;
-        const m = /(\d{3})\s*$/.exec(stdout);
-        if (m) {
-          status = Number(m[1]);
-          stdout = stdout.slice(0, m.index);
-        }
-        let parsed: { data?: unknown; error?: string } = {};
-        try {
-          parsed = JSON.parse(stdout || '{}');
-        } catch {
-          parsed = {};
-        }
-        if (status >= 200 && status < 300) {
-          resolve(parsed.data);
-          return;
-        }
-        reject(
-          new PveError(
-            parsed.error ?? `Upload gagal (HTTP ${status}).`,
-            status >= 400 ? status : 502
-          )
-        );
+    let res: HttpResult;
+    try {
+      res = await httpRequest(this.conn.host, this.conn.port, {
+        method: 'POST',
+        path: uploadPath,
+        headers,
+        rawBody: body,
+        rawContentType: headers['Content-Type'],
+        insecure: this.conn.insecure,
+        timeoutMs: 600000
       });
-    });
+    } catch (e) {
+      throw new PveError(`Upload gagal: ${(e as Error).message}`, 502);
+    }
+    if (res.status >= 200 && res.status < 300) {
+      const d = res.data as { data?: unknown } | null;
+      return (d && typeof d === 'object' && 'data' in d ? d.data : res.data) ?? {};
+    }
+    throw new PveError(extractErrorMessage(res.data, `Upload gagal (HTTP ${res.status}).`), res.status >= 400 ? res.status : 502);
   }
 }
 
