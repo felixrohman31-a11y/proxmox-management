@@ -120,14 +120,15 @@ npm run build
 cat > /etc/systemd/system/proxmox-management.service <<'EOF'
 [Unit]
 Description=Proxmox Management - multi-cluster panel
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/proxmox-management
 Environment=NODE_ENV=production
 Environment=PORT=3000
-ExecStart=/usr/bin/npm start
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start
 Restart=always
 RestartSec=5
 
@@ -157,6 +158,7 @@ server {
     listen 443 ssl default_server;
     ssl_certificate /etc/nginx/ssl/proxcenter.crt;
     ssl_certificate_key /etc/nginx/ssl/proxcenter.key;
+    add_header Strict-Transport-Security "max-age=31536000" always;
     client_max_body_size 0;
     location / {
         proxy_pass http://127.0.0.1:3000;
