@@ -11,9 +11,12 @@ import {
   LayersIcon,
   LogoutIcon,
   PlusIcon,
-  ShieldIcon
+  ShieldIcon,
+  UsersIcon
 } from './icons';
 import { useL } from './lang-context';
+
+type NavRole = 'admin' | 'viewer';
 
 function isActive(pathname: string, href: string): boolean {
   return href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
@@ -24,9 +27,10 @@ async function logout() {
   window.location.href = '/login';
 }
 
-export function Sidebar({ username }: { username: string }) {
+export function Sidebar({ username, role }: { username: string; role: NavRole }) {
   const pathname = usePathname();
   const L = useL();
+  const isAdmin = role === 'admin';
 
   const NAV = [
     { href: '/dashboard', label: L.nav.overview, icon: GridIcon },
@@ -36,6 +40,7 @@ export function Sidebar({ username }: { username: string }) {
     { href: '/dashboard/graphs', label: L.nav.graphs, icon: ChartIcon },
     { href: '/dashboard/sla', label: L.nav.sla, icon: ShieldIcon },
     { href: '/dashboard/clusters', label: L.nav.clusters, icon: LayersIcon },
+    ...(isAdmin ? [{ href: '/dashboard/users', label: L.nav.users, icon: UsersIcon }] : []),
     { href: '/dashboard/settings', label: L.nav.settings, icon: GearIcon }
   ];
 
@@ -69,7 +74,12 @@ export function Sidebar({ username }: { username: string }) {
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-zinc-800 text-xs font-bold uppercase text-orange-400">
               {username.slice(0, 2)}
             </span>
-            <span className="truncate text-sm text-zinc-300">{username}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm text-zinc-300">{username}</span>
+              <span className={`block text-[10px] font-semibold uppercase tracking-wide ${isAdmin ? 'text-orange-400/80' : 'text-zinc-500'}`}>
+                {isAdmin ? L.role.admin : L.role.viewer}
+              </span>
+            </span>
           </div>
           <button
             onClick={logout}
@@ -84,9 +94,10 @@ export function Sidebar({ username }: { username: string }) {
   );
 }
 
-export function MobileHeader({ username }: { username: string }) {
+export function MobileHeader({ username, role }: { username: string; role: NavRole }) {
   const pathname = usePathname();
   const L = useL();
+  const isAdmin = role === 'admin';
 
   const NAV_M = [
     { href: '/dashboard', label: L.nav.overview },
@@ -95,6 +106,7 @@ export function MobileHeader({ username }: { username: string }) {
     { href: '/dashboard/backup', label: L.nav.backup },
     { href: '/dashboard/graphs', label: L.nav.graphs },
     { href: '/dashboard/clusters', label: L.nav.clusters },
+    ...(isAdmin ? [{ href: '/dashboard/users', label: L.nav.users }] : []),
     { href: '/dashboard/settings', label: L.nav.settings }
   ];
 

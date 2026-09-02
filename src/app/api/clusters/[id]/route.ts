@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import { getSessionFromCookies, canWrite } from '@/lib/session';
 import { deleteCluster, getStoredCluster, updateCluster } from '@/lib/store';
 import { appendAudit } from '@/lib/audit';
 
 type Ctx = { params: { id: string } };
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  if (!getSessionFromCookies()) {
+  const session = getSessionFromCookies();
+  if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   let b: Record<string, unknown>;
   try {
@@ -45,7 +49,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     await appendAudit({
       ts: new Date().toISOString(),
-      user: getSessionFromCookies()?.u ?? '?',
+      user: session.u,
       action: 'cluster.update',
       target: updated.name
     });
@@ -56,8 +60,12 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  if (!getSessionFromCookies()) {
+  const session = getSessionFromCookies();
+  if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   try {
     const stored = getStoredCluster(ctx.params.id);
@@ -67,7 +75,7 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
     }
     await appendAudit({
       ts: new Date().toISOString(),
-      user: getSessionFromCookies()?.u ?? '?',
+      user: session.u,
       action: 'cluster.delete',
       target: stored?.name ?? ctx.params.id
     });

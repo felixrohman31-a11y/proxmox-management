@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import { getSessionFromCookies, canWrite } from '@/lib/session';
 import { getPveClient, PveError } from '@/lib/pve';
 
 type Ctx = { params: { id: string } };
 
 export async function POST(_req: NextRequest, ctx: Ctx) {
-  if (!getSessionFromCookies()) {
+  const session = getSessionFromCookies();
+  if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   const client = getPveClient(ctx.params.id);
   if (!client) {

@@ -1,17 +1,29 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { getSessionSecret } from './secrets';
+import { findUser, type UserRole } from './users';
 
 export const SESSION_COOKIE = 'pc_session';
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7;
 
-export interface SessionPayload {
-  u: string;
+export interface SessionUser {
+  id: string;
+  u: string; // username
+  role: UserRole;
+}
+
+export interface SessionPayload extends SessionUser {
+  pwdVersion: number;
   exp: number;
 }
 
-export function createSessionToken(username: string): string {
-  const payload: SessionPayload = { u: username, exp: Date.now() + SESSION_MAX_AGE * 1000 };
+export function createSessionToken(user: SessionUser): string {
+  const stored = findUser(user.u);
+  const payload: SessionPayload = {
+    ...user,
+    pwdVersion: stored ? stored.pwdVersion : 1,
+    exp: Date.now() + SESSION_MAX_AGE * 1000
+  };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const sig = crypto.createHmac('sha256', getSessionSecret()).update(body).digest('base64url');
   return `${body}.${sig}`;
@@ -34,7 +46,25 @@ export function verifySessionToken(token?: string | null): SessionPayload | null
   }
 }
 
+// Ambil sesi dari cookie + pastikan user masih ada, aktif, dan versi password
+// masih cocok (invalidasi sesi lama saat password diganti/direset).
 export function getSessionFromCookies(): SessionPayload | null {
   const jar = cookies();
-  return verifySessionToken(jar.get(SESSION_COOKIE)?.value);
+  const raw = jar.get(SESSION_COOKIE)?.value;
+  const payload = verifySessionToken(raw);
+  if (!payload) return null;
+  const stored = findUser(payload.u);
+  if (!stored || !stored.enabled) return null;
+  if (stored.pwdVersion !== payload.pwdVersion) return null;
+  // role selalu mengikuti kondisi terkini di store (bukan klaim token lama)
+  return { ...payload, role: stored.role, id: stored.id };
+}
+
+export function requireAdmin(session: SessionPayload | null): boolean {
+  return session !== null && session.role === 'admin';
+}
+
+// "write" = semua aksi yang mengubah state (role viewer tidak boleh).
+export function canWrite(session: SessionPayload | null): boolean {
+  return session !== null && session.role === 'admin';
 }

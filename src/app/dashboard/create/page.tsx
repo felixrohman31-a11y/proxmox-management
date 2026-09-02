@@ -1,10 +1,12 @@
 import PageHeader from '@/components/PageHeader';
 import ClusterSelector from '@/components/ClusterSelector';
 import CreateGuestForm from '@/components/CreateGuestForm';
+import ReadOnlyNotice from '@/components/ReadOnlyNotice';
 import { PlusIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
 import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
+import { getSessionFromCookies } from '@/lib/session';
 import Link from 'next/link';
 import { serverT } from '@/lib/locale-server';
 import { fmt } from '@/lib/i18n-dict';
@@ -13,6 +15,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function CreatePage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
   const L = serverT();
+  const session = getSessionFromCookies();
+  const readOnly = session?.role !== 'admin';
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
   let nodes: { node: string; status: string }[] = [];
@@ -43,11 +47,13 @@ export default async function CreatePage({ searchParams }: { searchParams?: { c?
         </div>
       )}
 
+      {readOnly && <ReadOnlyNotice />}
+
       {cluster && error && (
         <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{error}</p>
       )}
 
-      {cluster && !error && <CreateGuestForm key={cluster.id} clusterId={cluster.id} nodes={nodes} />}
+      {cluster && !error && !readOnly && <CreateGuestForm key={cluster.id} clusterId={cluster.id} nodes={nodes} />}
     </>
   );
 }

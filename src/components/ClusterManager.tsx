@@ -72,7 +72,7 @@ function MiniBtn({
   );
 }
 
-export default function ClusterManager({ clusters }: { clusters: PublicCluster[] }) {
+export default function ClusterManager({ clusters, readOnly = false }: { clusters: PublicCluster[]; readOnly?: boolean }) {
   const router = useRouter();
   const L = useL();
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -186,18 +186,19 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
   return (
     <div className="space-y-5">
       <div className="flex justify-end">
-        {showForm ? (
-          <button className="btn-ghost" onClick={() => setShowForm(false)}>
-            {L.clusters.closeForm}
-          </button>
-        ) : (
-          <button className="btn-primary" onClick={openCreate}>
-            <PlusIcon /> {L.clusters.add}
-          </button>
-        )}
+        {!readOnly &&
+          (showForm ? (
+            <button className="btn-ghost" onClick={() => setShowForm(false)}>
+              {L.clusters.closeForm}
+            </button>
+          ) : (
+            <button className="btn-primary" onClick={openCreate}>
+              <PlusIcon /> {L.clusters.add}
+            </button>
+          ))}
       </div>
 
-      {showForm && (
+      {showForm && !readOnly && (
         <form onSubmit={save} className="card p-5">
           <h2 className="mb-4 text-sm font-semibold text-zinc-200">
             {form.id ? L.clusters.formEdit : L.clusters.formNew}
@@ -334,7 +335,7 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
                 <Th>{L.clusters.colAuth}</Th>
                 <Th>{L.clusters.colTls}</Th>
                 <Th>{L.clusters.colCreated}</Th>
-                <Th className="text-right">{L.clusters.colAct}</Th>
+                {!readOnly && <Th className="text-right">{L.clusters.colAct}</Th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/70">
@@ -374,24 +375,26 @@ export default function ClusterManager({ clusters }: { clusters: PublicCluster[]
                   <Td className="whitespace-nowrap text-xs text-zinc-500">
                     {new Date(c.createdAt).toLocaleDateString('id-ID')}
                   </Td>
-                  <Td>
-                    <div className="flex justify-end gap-1">
-                      <MiniBtn onClick={() => test(c)} title="Tes koneksi" disabled={tests[c.id]?.loading}>
-                        {tests[c.id]?.loading ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <BoltIcon />}
-                      </MiniBtn>
-                      <MiniBtn onClick={() => openEdit(c)} title="Edit">
-                        <PencilIcon />
-                      </MiniBtn>
-                      <MiniBtn onClick={() => remove(c)} title="Hapus" tone="red" disabled={deleting === c.id}>
-                        {deleting === c.id ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <TrashIcon />}
-                      </MiniBtn>
-                    </div>
-                  </Td>
+                  {!readOnly && (
+                    <Td>
+                      <div className="flex justify-end gap-1">
+                        <MiniBtn onClick={() => test(c)} title="Tes koneksi" disabled={tests[c.id]?.loading}>
+                          {tests[c.id]?.loading ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <BoltIcon />}
+                        </MiniBtn>
+                        <MiniBtn onClick={() => openEdit(c)} title="Edit">
+                          <PencilIcon />
+                        </MiniBtn>
+                        <MiniBtn onClick={() => remove(c)} title="Hapus" tone="red" disabled={deleting === c.id}>
+                          {deleting === c.id ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <TrashIcon />}
+                        </MiniBtn>
+                      </div>
+                    </Td>
+                  )}
                 </tr>
               ))}
               {clusters.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-zinc-500">
+                  <td colSpan={readOnly ? 6 : 7} className="px-4 py-10 text-center text-sm text-zinc-500">
                     {L.clusters.emptyRow}
                   </td>
                 </tr>

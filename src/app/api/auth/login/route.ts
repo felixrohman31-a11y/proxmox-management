@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from '@/lib/session';
 import { appendAudit } from '@/lib/audit';
+import { findUser, seedAdminUser, verifyPassword } from '@/lib/users';
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 5 * 60 * 1000;
@@ -42,15 +43,23 @@ export async function POST(req: NextRequest) {
   } catch {
     body = {};
   }
-  const adminUser = process.env.ADMIN_USER || 'admin';
-  const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+  seedAdminUser();
   const { username, password } = body;
-
-  const uname = typeof username === 'string' ? username : '';
+  const uname = typeof username === 'string' ? username.trim() : '';
   const pass = typeof password === 'string' ? password : '';
-  const ok = safeEqual(uname, adminUser) && safeEqual(pass, adminPass);
 
-  if (!ok) {
+  // Verifikasi terhadap store user (hash scrypt). Fallback env hanya bila
+  // store sama sekali tidak terbaca / user belum tersimpan (keadaan darurat).
+  const user = uname ? findUser(uname) : undefined;
+  const ok = user ? verifyPassword(user, pass) : false;
+  const envOk =
+    !user &&
+    safeEqual(uname, (process.env.ADMIN_USER || 'admin').trim()) &&
+    safeEqual(pass, process.env.ADMIN_PASSWORD || 'admin123');
+
+  const lockedDisabled = user && !user.enabled;
+
+  if (!ok && !envOk) {
     const count = (rec ? rec.count : 0) + 1;
     attempts.set(ip, { count, lockUntil: count >= MAX_ATTEMPTS ? now + LOCK_MS : 0 });
     if (attempts.size > 5000) attempts.clear();
@@ -59,19 +68,26 @@ export async function POST(req: NextRequest) {
       ts: new Date().toISOString(),
       user: uname || '-',
       action: 'login.gagal',
-      target: `percobaan ke-${count}`,
+      target: lockedDisabled ? 'akun dinonaktifkan' : `percobaan ke-${count}`,
       ip
     });
     return NextResponse.json({ error: 'Username atau password salah.' }, { status: 401 });
   }
 
   attempts.delete(ip);
-  await appendAudit({ ts: new Date().toISOString(), user: uname, action: 'login.ok', target: ip, ip });
+  const uName = user ? user.username : (process.env.ADMIN_USER || 'admin').trim().toLowerCase();
+  const role = user ? user.role : 'admin';
+  await appendAudit({ ts: new Date().toISOString(), user: uName, action: 'login.ok', target: ip, ip });
+  // Secure cookie hanya saat koneksi benar-benar HTTPS (langsung atau lewat
+  // proxy yang meneruskan x-forwarded-proto). Ini membuat sesi tetap bekerja
+  // saat diakses via http://localhost dalam mode production (next start).
+  const proto = req.headers.get('x-forwarded-proto')?.split(',')[0].trim() || '';
+  const secure = proto === 'https' || req.nextUrl.protocol === 'https:';
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE, createSessionToken(uname), {
+  res.cookies.set(SESSION_COOKIE, createSessionToken({ id: user?.id ?? '', u: uName, role }), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     path: '/',
     maxAge: SESSION_MAX_AGE
   });

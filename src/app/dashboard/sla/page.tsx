@@ -6,6 +6,7 @@ import SlaTargetEditor from '@/components/SlaTargetEditor';
 import { ShieldIcon, CheckIcon, AlertIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
 import { resolveCluster } from '@/lib/cluster-select';
+import { getSessionFromCookies } from '@/lib/session';
 import { serverT, getServerLocale } from '@/lib/locale-server';
 import { slaForCluster, fmtDowntime, type ClusterSla, type SlaRow } from '@/lib/sla';
 
@@ -42,13 +43,15 @@ function SlaTable({
   title,
   sla,
   L,
-  en
+  en,
+  readOnly
 }: {
   rows: SlaRow[];
   title: string;
   sla: ClusterSla;
   L: ReturnType<typeof serverT>;
   en: boolean;
+  readOnly?: boolean;
 }) {
   if (!rows.length) {
     return (
@@ -96,6 +99,7 @@ function SlaTable({
                   slaKey={r.key}
                   value={r.target}
                   custom={sla.customTargets[r.key] !== undefined}
+                  readOnly={readOnly}
                 />
               </td>
               <td
@@ -124,6 +128,8 @@ export default async function SlaPage({
 }) {
   const sp = searchParams ?? {};
   const L = serverT();
+  const session = getSessionFromCookies();
+  const readOnly = session?.role !== 'admin';
   const en = getServerLocale() === 'en';
   const { clusters, cluster } = resolveCluster(sp.c);
 
@@ -231,8 +237,8 @@ export default async function SlaPage({
           </div>
 
           <div className="mt-4 space-y-4">
-            <SlaTable rows={sla.nodes} title={L.sla.nodes} sla={sla} L={L} en={en} />
-            <SlaTable rows={sla.guests} title={L.sla.guests} sla={sla} L={L} en={en} />
+            <SlaTable rows={sla.nodes} title={L.sla.nodes} sla={sla} L={L} en={en} readOnly={readOnly} />
+            <SlaTable rows={sla.guests} title={L.sla.guests} sla={sla} L={L} en={en} readOnly={readOnly} />
           </div>
         </>
       )}
