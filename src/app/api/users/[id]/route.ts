@@ -37,6 +37,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
   const patch: { role?: UserRole; enabled?: boolean; username?: string } = {};
   if (b.role === 'superadmin' || b.role === 'admin' || b.role === 'auditor') {
+    // Super admin tidak boleh menurunkan perannya sendiri (self-demote diblokir).
+    if (target.id === session.id) {
+      return NextResponse.json(
+        { error: 'Tidak dapat mengubah peran akun sendiri.' },
+        { status: 400 }
+      );
+    }
     if (!assignableRoles(session.role).includes(b.role)) {
       return denied('Anda tidak memiliki hak untuk memberikan peran ini.');
     }
