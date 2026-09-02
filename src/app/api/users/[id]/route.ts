@@ -24,16 +24,9 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: 'Body tidak valid.' }, { status: 400 });
   }
 
-  // Admin tidak boleh mengubah role/status dirinya sendiri lewat panel (hindari
-  // terkunci: admin terakhir dilindungi store, dan menonaktifkan diri sendiri
-  // akan memutus sesi). Ganti password sendiri lewat /api/account/password.
-  if (target.id === session.id) {
-    return NextResponse.json(
-      { error: 'Tidak dapat mengubah akun sendiri di sini. Gunakan menu Akun untuk mengganti password.' },
-      { status: 400 }
-    );
-  }
-
+  // Self-edit diperbolehkan. Keamanan lockout tetap dijaga oleh store: updateUser
+  // menolak menurunkan/menonaktifkan admin terakhir, sehingga admin tidak bisa
+  // mengunci dirinya dari sistem.
   const patch: { role?: UserRole; enabled?: boolean; username?: string } = {};
   if (b.role === 'admin' || b.role === 'viewer') patch.role = b.role as UserRole;
   if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;

@@ -350,7 +350,7 @@ export default function UsersManager({
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center justify-end gap-1.5">
-                        {u.id !== currentUserId && u.role === 'viewer' && (
+                        {u.role === 'viewer' && (
                           <button
                             type="button"
                             title="Jadikan admin"
@@ -361,7 +361,7 @@ export default function UsersManager({
                             <UsersIcon />
                           </button>
                         )}
-                        {u.id !== currentUserId && u.role === 'admin' && (
+                        {u.role === 'admin' && (
                           <button
                             type="button"
                             title="Jadikan read-only"
@@ -386,7 +386,7 @@ export default function UsersManager({
                             <KeyIcon />
                           </button>
                         )}
-                        {u.id !== currentUserId && u.enabled ? (
+                        {u.enabled ? (
                           <button
                             type="button"
                             title="Nonaktifkan"
@@ -396,7 +396,7 @@ export default function UsersManager({
                           >
                             <XIcon />
                           </button>
-                        ) : u.id !== currentUserId && !u.enabled ? (
+                        ) : !u.enabled ? (
                           <button
                             type="button"
                             title="Aktifkan"
