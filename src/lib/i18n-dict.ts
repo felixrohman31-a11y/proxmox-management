@@ -23,6 +23,9 @@ const id = {
     tagline: 'Multi-Cluster Panel',
   },
   nav: {
+    groupMonitor: 'Monitoring',
+    groupManage: 'Kelola',
+    groupSystem: 'Sistem',
     overview: 'Overview',
     vms: 'Virtual Machines',
     create: 'Buat Guest',
@@ -523,6 +526,9 @@ const en: Dict = {
     tagline: 'Multi-Cluster Panel',
   },
   nav: {
+    groupMonitor: 'Monitoring',
+    groupManage: 'Manage',
+    groupSystem: 'System',
     overview: 'Overview',
     vms: 'Virtual Machines',
     create: 'Create Guest',
