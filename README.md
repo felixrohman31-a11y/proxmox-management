@@ -30,13 +30,16 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
   - Executive summary language + automatic follow-up recommendations
 
 #### Administration
-- **Audit Log** — logins, cluster CRUD, all PVE mutations recorded automatically
+- **User Management & RBAC** — 3 roles: **Super Admin** (manage all users/roles), **Administrator** (manage auditors only), **Auditor** (read-only, own password only); scrypt-hashed passwords, last-super-admin lockout guard
+- **Audit Log** — logins, user/role changes, cluster CRUD, all PVE mutations recorded automatically
 - **Notifications** — WhatsApp/Telegram alerts when a guest goes down (Fonnte / CallMeBot / Telegram Bot)
 - **FTP Config Backup** — panel configuration bundle with connection test & auto-daily option
 
 ### Security
 - Login rate-limiting (lockout after 5 failures) + constant-time comparison
-- Session cookie `HttpOnly` + `Secure` + HMAC-SHA256 (7 days)
+- Passwords hashed with **scrypt** (N=16384); per-role access enforced server-side (auditor read-only)
+- Session cookie `HttpOnly` + `Secure` + HMAC-SHA256 (7 days); sessions invalidated on password change/reset and account disable
+- Super-admin self-lockout protection: cannot demote/disable/delete itself, last super-admin is guarded
 - Nginx HTTP→HTTPS redirect + HSTS
 
 ### Architecture
@@ -44,7 +47,8 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
 ```
 Browser ──> Next.js (UI + API Routes) ──HTTPS──> Proxmox VE API (port 8006)
                  │
-                 ├─ data/clusters.json   (encrypted credentials)
+                 ├─ data/clusters.json   (encrypted credentials, AES-256-GCM)
+                 ├─ data/users.json      (panel users, scrypt-hashed, 3-tier RBAC)
                  ├─ data/.secret         (encryption key, auto-generated)
                  └─ data/audit.log       (JSONL audit trail)
 ```
@@ -87,6 +91,8 @@ chmod 600 .env.local
 | `ADMIN_USER` | `admin` | Panel login username |
 | `ADMIN_PASSWORD` | `admin123` | Panel login password (**must change**) |
 | `APP_SECRET` | random (`data/.secret`) | Session signing key |
+
+The `ADMIN_USER` account is bootstrapped as **Super Admin** on first run; additional users/roles are managed from the panel itself (Users page).
 
 ### 4. Build
 
@@ -188,7 +194,7 @@ src/
 
 ## Roadmap
 
-- [ ] Multi-user panel + RBAC
+- [x] Multi-user panel + RBAC (3-tier: Super Admin / Administrator / Auditor)
 - [ ] Restore VM/CT directly from dump files
 - [ ] Per-guest custom monitoring windows
 
@@ -217,11 +223,12 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
 - Bahasa eksekutif untuk pimpinan + rekomendasi otomatis
 
 **Administrasi**
-- Audit Log otomatis
+- **Manajemen User & RBAC** — 3 peran: **Super Admin** (kelola semua user/peran), **Administrator** (kelola auditor saja), **Auditor** (read-only, ganti password sendiri); password di-hash scrypt, guard super-admin-terakhir
+- Audit Log otomatis (login, perubahan user/peran, mutasi cluster/VM)
 - Notifikasi WhatsApp/Telegram saat guest mati
 - Backup konfigurasi panel ke FTP
 
-**Keamanan**: rate-limit login, cookie Secure/HMAC-SHA256, enkripsi AES-256-GCM, HSTS
+**Keamanan**: rate-limit login, password scrypt, cookie Secure/HMAC-SHA256, enkripsi AES-256-GCM, HSTS, proteksi lockout super admin
 
 ### Deploy
 
