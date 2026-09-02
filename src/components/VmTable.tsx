@@ -28,6 +28,7 @@ interface Props {
   host: string;
   port: number;
   guests: GuestRow[];
+  readOnly?: boolean;
 }
 
 function Chip({ tone = 'default', children }: { tone?: 'default' | 'emerald' | 'amber'; children: ReactNode }) {
@@ -67,14 +68,14 @@ function ActBtn({
       aria-label={title}
       onClick={onClick}
       disabled={busy}
-      className={`rounded-md border p-1.5 transition disabled:opacity-40 ${tones[tone]}`}
+      className={`rounded-md border p-1.5 transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${tones[tone]}`}
     >
       {busy ? <RefreshIcon className="h-4 w-4 animate-spin" /> : children}
     </button>
   );
 }
 
-export default function VmTable({ clusterId, guests }: Props) {
+export default function VmTable({ clusterId, guests, readOnly = false }: Props) {
   const router = useRouter();
   const L = useL();
   const [q, setQ] = useState('');
@@ -346,7 +347,7 @@ export default function VmTable({ clusterId, guests }: Props) {
         </select>
       </div>
 
-      {selected.size > 0 && (
+      {selected.size > 0 && !readOnly && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-orange-800/50 bg-orange-500/5 p-3 text-sm">
           <span className="font-medium text-zinc-200">{fmt(L.vms.selN, { n: selected.size })}</span>
           {selectedGuests.some((g) => g.status === 'stopped') && (
@@ -380,15 +381,17 @@ export default function VmTable({ clusterId, guests }: Props) {
           <table className="w-full min-w-[1120px] text-left">
             <thead className="bg-zinc-900/60">
               <tr>
-                <Th className="w-8">
-                  <input
-                    type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={toggleAllFiltered}
-                    aria-label="Pilih semua"
-                    className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
-                  />
-                </Th>
+                {!readOnly && (
+                  <Th className="w-8">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={toggleAllFiltered}
+                      aria-label="Pilih semua"
+                      className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
+                    />
+                  </Th>
+                )}
                 <Th>{L.vms.colId}</Th>
                 <Th>{L.vms.colName}</Th>
                 <Th>{L.vms.colType}</Th>
@@ -398,23 +401,25 @@ export default function VmTable({ clusterId, guests }: Props) {
                 <Th className="min-w-[8rem]">{L.vms.colMem}</Th>
                 <Th className="min-w-[9rem]">{L.vms.colDisk}</Th>
                 <Th>{L.vms.colUptime}</Th>
-                <Th className="text-right">{L.vms.colAct}</Th>
+                {!readOnly && <Th className="text-right">{L.vms.colAct}</Th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/70">
               {filtered.map((g) => (
                 <tr key={`${g.type}-${g.vmid}-${g.node}`} className="hover:bg-zinc-900/40">
-                  <Td>
-                    {selectable(g) && (
-                      <input
-                        type="checkbox"
-                        checked={selected.has(selKey(g))}
-                        onChange={() => toggleSel(g)}
-                        aria-label={`Pilih ${g.name}`}
-                        className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
-                      />
-                    )}
-                  </Td>
+                  {!readOnly && (
+                    <Td>
+                      {selectable(g) && (
+                        <input
+                          type="checkbox"
+                          checked={selected.has(selKey(g))}
+                          onChange={() => toggleSel(g)}
+                          aria-label={`Pilih ${g.name}`}
+                          className="h-3.5 w-3.5 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
+                        />
+                      )}
+                    </Td>
+                  )}
                   <Td>
                     <span className="font-mono text-xs text-zinc-400">{g.vmid}</span>
                   </Td>
@@ -457,8 +462,9 @@ export default function VmTable({ clusterId, guests }: Props) {
                     {fmtBytes(g.diskUsed)} / {fmtBytes(g.diskMax)}
                   </Td>
                   <Td className="whitespace-nowrap text-zinc-400">{fmtUptime(g.uptime)}</Td>
-                  <Td>
-                    <div className="flex items-center justify-end gap-1">
+                  {!readOnly && (
+                    <Td>
+                      <div className="flex items-center justify-end gap-1">
                       {!g.template && g.status === 'stopped' && (
                         <ActBtn
                           title={L.vms.aStart}
@@ -515,13 +521,14 @@ export default function VmTable({ clusterId, guests }: Props) {
                       >
                         <ExternalIcon />
                       </a>
-                    </div>
-                  </Td>
+                      </div>
+                    </Td>
+                  )}
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-zinc-500">
+                  <td colSpan={readOnly ? 10 : 11} className="px-4 py-10 text-center text-sm text-zinc-500">
                     {L.vms.noMatch}
                   </td>
                 </tr>

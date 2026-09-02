@@ -49,7 +49,7 @@ export default function LoginForm() {
         <p className="mt-1 text-sm text-zinc-500">{L.login.sub}</p>
       </div>
 
-      <form onSubmit={submit} className="card space-y-4 p-6">
+      <form onSubmit={submit} className="card space-y-4 p-6 shadow-soft-lg">
         <div>
           <label className="label" htmlFor="pc-user">{L.login.user}</label>
           <input

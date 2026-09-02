@@ -5,11 +5,13 @@ import { AlertIcon, CubeIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
 import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
+import { getSessionFromCookies } from '@/lib/session';
 import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 export default async function VmsPage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
+  const session = getSessionFromCookies();
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
   let error: string | null = null;
@@ -60,6 +62,7 @@ export default async function VmsPage({ searchParams }: { searchParams?: { c?: s
           host={cluster.host}
           port={cluster.port}
           guests={guests}
+          readOnly={session?.role !== 'admin'}
         />
       )}
     </>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import { getSessionFromCookies, canWrite } from '@/lib/session';
 import {
   ensureScheduler,
   getBackupState,
@@ -22,6 +22,9 @@ export async function PUT(req: NextRequest) {
   const session = getSessionFromCookies();
   if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   let b: Record<string, unknown>;
   try {
@@ -60,6 +63,9 @@ export async function POST(req: NextRequest) {
   const session = getSessionFromCookies();
   if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   ensureScheduler();
 

@@ -8,12 +8,14 @@ export default function SlaTargetEditor({
   clusterId,
   slaKey,
   value,
-  custom
+  custom,
+  readOnly = false
 }: {
   clusterId: string;
   slaKey: string;
   value: number;
   custom: boolean;
+  readOnly?: boolean;
 }) {
   const L = useL();
   const router = useRouter();
@@ -40,6 +42,19 @@ export default function SlaTargetEditor({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (readOnly) {
+    return (
+      <span
+        title={custom ? L.sla.customMark : undefined}
+        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+          custom ? 'bg-orange-500/10 text-orange-400' : 'bg-zinc-800/70 text-zinc-300'
+        }`}
+      >
+        {value.toFixed(2)}%{custom ? ' •' : ''}
+      </span>
+    );
   }
 
   if (!editing) {

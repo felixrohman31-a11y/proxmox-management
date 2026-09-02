@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import { getSessionFromCookies, canWrite } from '@/lib/session';
 import { listClustersSync } from '@/lib/store';
 import { slaForCluster, setSlaTarget, setSlaDefaultTarget } from '@/lib/sla';
 import { appendAudit } from '@/lib/audit';
@@ -37,6 +37,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) {
     return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+  }
+  if (!canWrite(session)) {
+    return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
   }
   const cluster = listClustersSync().find((c) => c.id === ctx.params.id);
   if (!cluster) {

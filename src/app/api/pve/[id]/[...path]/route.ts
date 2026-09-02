@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import { getSessionFromCookies, canWrite } from '@/lib/session';
 import { getPveClient, PveError } from '@/lib/pve';
 import { appendAudit } from '@/lib/audit';
 import { checkRateLimit, RateLimitResult } from '@/lib/rate-limit';
@@ -8,6 +8,10 @@ type Ctx = { params: { id: string; path: string[] } };
 
 function unauthorized() {
   return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
+}
+
+function forbidden() {
+  return NextResponse.json({ error: 'Akses ditolak. Peran read-only.' }, { status: 403 });
 }
 
 function clientIp(req: NextRequest): string {
@@ -64,6 +68,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return unauthorized();
+  if (!canWrite(session)) return forbidden();
   const client = getPveClient(ctx.params.id);
   if (!client) return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
   const gate = rateLimit(clientIp(req), ctx.params.id, true);
@@ -94,6 +99,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 export async function PUT(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return unauthorized();
+  if (!canWrite(session)) return forbidden();
   const client = getPveClient(ctx.params.id);
   if (!client) return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
   const gate = rateLimit(clientIp(req), ctx.params.id, true);
@@ -124,6 +130,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return unauthorized();
+  if (!canWrite(session)) return forbidden();
   const client = getPveClient(ctx.params.id);
   if (!client) return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
   const gate = rateLimit(clientIp(req), ctx.params.id, true);

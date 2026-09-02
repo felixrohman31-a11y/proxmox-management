@@ -6,28 +6,82 @@
   :root {
     color-scheme: dark;
   }
+
+  html {
+    @apply scroll-smooth;
+  }
+
   body {
     @apply bg-zinc-950 text-zinc-200 antialiased;
+  }
+
+  ::selection {
+    @apply bg-orange-500/30 text-zinc-50;
+  }
+
+  /* Scrollbar halus untuk area overflow (tabel, panel). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(63 63 70 / 0.9) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgb(63 63 70 / 0.8);
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(82 82 91);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
 @layer components {
   .card {
-    @apply rounded-xl border border-zinc-800 bg-zinc-900/50;
+    @apply rounded-xl border border-zinc-800/80 bg-zinc-900/50 shadow-soft;
   }
+
+  .card-hover {
+    @apply transition duration-150 hover:border-zinc-700/80 hover:bg-zinc-900/70;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-orange-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-orange-950/40 transition duration-150 ease-out hover:bg-orange-500 focus-visible:ring-2 focus-visible:ring-orange-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
+
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900/40 px-3.5 py-2 text-sm font-medium text-zinc-300 transition duration-150 ease-out hover:bg-zinc-800 hover:text-zinc-100 focus-visible:ring-2 focus-visible:ring-orange-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
+
   .btn-danger {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600/90 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600/90 px-3.5 py-2 text-sm font-semibold text-white transition duration-150 ease-out hover:bg-red-500 focus-visible:ring-2 focus-visible:ring-red-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:outline-none active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
   }
+
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-lg p-2 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-zinc-100 focus-visible:ring-2 focus-visible:ring-orange-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 focus-visible:outline-none active:scale-95 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
   .input {
-    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-orange-500/70 focus:outline-none;
+    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-200 transition duration-150 placeholder:text-zinc-600 focus:border-orange-500/70 focus:ring-2 focus:ring-orange-500/20 focus:outline-none;
   }
+
   .label {
-    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500;
+    @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500;
+  }
+
+  .muted {
+    @apply text-zinc-500;
+  }
+
+  .divider {
+    @apply h-px w-full bg-zinc-800/80;
+  }
+
+  .skeleton {
+    @apply animate-pulse rounded-md bg-zinc-800/60;
   }
 }
