@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useState } from 'react';
 import { AlertIcon, ArchiveIcon, RefreshIcon, TrashIcon } from './icons';
@@ -314,7 +314,7 @@ export default function BackupPanel({ clusterId, nodes, guests }: Props) {
                         title={L.backup.delTitle}
                         onClick={() => removeDump(b.volid)}
                         disabled={Boolean(phase)}
-                        className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
+                        className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition duration-150 ease-out hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                       >
                         <TrashIcon />
                       </button>

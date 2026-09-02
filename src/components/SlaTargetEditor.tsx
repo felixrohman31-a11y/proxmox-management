@@ -67,7 +67,7 @@ export default function SlaTargetEditor({
           setEditing(true);
         }}
         title={custom ? L.sla.customMark : undefined}
-        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition ${
+        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
           custom
             ? 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
             : 'bg-zinc-800/70 text-zinc-300 hover:bg-zinc-700/70'
@@ -98,7 +98,7 @@ export default function SlaTargetEditor({
         />
         <button
           type="button"
-          className="rounded-md bg-emerald-600/80 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+          className="rounded-md bg-emerald-600/80 px-2 py-1 text-xs font-medium text-white transition duration-150 hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-emerald-500/60 active:scale-95 disabled:opacity-50"
           disabled={busy}
           onClick={() => void save(Number(val))}
         >
@@ -106,7 +106,7 @@ export default function SlaTargetEditor({
         </button>
         <button
           type="button"
-          className="rounded-md bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600 disabled:opacity-50"
+          className="rounded-md bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 transition duration-150 hover:bg-zinc-600 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-zinc-400/60 active:scale-95 disabled:opacity-50"
           disabled={busy}
           onClick={() => setEditing(false)}
         >
@@ -118,7 +118,7 @@ export default function SlaTargetEditor({
         {custom ? (
           <button
             type="button"
-            className="text-[11px] text-zinc-500 underline hover:text-zinc-300 disabled:opacity-50"
+            className="text-[11px] text-zinc-500 underline transition duration-150 hover:text-zinc-300 focus-visible:outline-none focus-visible:text-zinc-300 disabled:opacity-50"
             disabled={busy}
             onClick={() => void save(null)}
           >

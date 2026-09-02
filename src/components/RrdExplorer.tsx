@@ -186,7 +186,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTf(t)}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-medium capitalize transition ${
+                className={`rounded-md px-2.5 py-1.5 text-xs font-medium capitalize transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
                   tf === t ? 'bg-orange-500/15 text-orange-400' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
                 }`}
               >

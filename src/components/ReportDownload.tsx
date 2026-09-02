@@ -29,7 +29,7 @@ export default function ReportDownload({ clusterId, clusterName }: { clusterId: 
             key={val}
             type="button"
             onClick={() => setScope(val)}
-            className={`px-2.5 py-1.5 transition ${
+            className={`px-2.5 py-1.5 transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
               scope === val
                 ? 'bg-orange-500/15 text-orange-400'
                 : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200'

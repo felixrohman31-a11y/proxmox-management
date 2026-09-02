@@ -269,7 +269,7 @@ export default function UsersManager({
                     type="button"
                     key={val}
                     onClick={() => setRole(val)}
-                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-[0.98] ${
                       role === val
                         ? 'border-orange-500 bg-orange-500/10 text-orange-400'
                         : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700'

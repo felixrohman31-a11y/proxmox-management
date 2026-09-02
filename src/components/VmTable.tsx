@@ -508,7 +508,7 @@ export default function VmTable({ clusterId, guests, readOnly = false }: Props) 
                           `${g.type}|${g.vmid}|${g.node}`
                         )}&tf=day`}
                         title={L.vms.graphT}
-                        className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                        className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95"
                       >
                         <ChartIcon />
                       </a>
@@ -517,7 +517,7 @@ export default function VmTable({ clusterId, guests, readOnly = false }: Props) 
                         target="_blank"
                         rel="noreferrer"
                         title={L.vms.consT}
-                        className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-100"
+                        className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95"
                       >
                         <ExternalIcon />
                       </a>

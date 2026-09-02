@@ -22,7 +22,7 @@ export default function LangToggle({ compact = false }: { compact?: boolean }) {
           key={l}
           type="button"
           onClick={() => switchTo(l)}
-          className={`px-2 py-1 uppercase transition ${
+          className={`px-2 py-1 uppercase transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
             locale === l
               ? 'bg-orange-500/15 text-orange-400'
               : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
