@@ -9,6 +9,7 @@ export default function AccountPanel() {
   const [oldPass, setOldPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [invalidate, setInvalidate] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -32,7 +33,7 @@ export default function AccountPanel() {
       const res = await fetch('/api/account/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass })
+        body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass, invalidateSessions: invalidate })
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || 'Gagal mengganti password.');
@@ -40,10 +41,6 @@ export default function AccountPanel() {
       setNewPass('');
       setConfirm('');
       setMsg({ kind: 'ok', text: L.account.done });
-      // Password berubah → pwdVersion naik → sesi ini tidak valid lagi.
-      setTimeout(() => {
-        window.location.href = '/login';
-      }, 1500);
     } catch (err) {
       setMsg({ kind: 'err', text: (err as Error).message });
     } finally {
@@ -95,7 +92,16 @@ export default function AccountPanel() {
         </div>
       </form>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-400">
+          <input
+            type="checkbox"
+            checked={invalidate}
+            onChange={(e) => setInvalidate(e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 accent-orange-600"
+          />
+          {L.account.signOutOthers}
+        </label>
         <button type="submit" onClick={submit} disabled={busy} className="btn-primary">
           {busy ? <RefreshIcon className="h-4 w-4 animate-spin" /> : null} {L.account.btnSave}
         </button>

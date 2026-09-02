@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies } from '@/lib/session';
+import {
+  getSessionFromCookies,
+  createSessionToken,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE
+} from '@/lib/session';
 import { appendAudit } from '@/lib/audit';
 import { changeOwnPassword } from '@/lib/users';
 
@@ -15,9 +20,11 @@ export async function POST(req: NextRequest) {
   }
   const oldPassword = String(b.oldPassword ?? '');
   const newPassword = String(b.newPassword ?? '');
+  // Putuskan sesi aktif lain? (default true)
+  const invalidateSessions = b.invalidateSessions !== false;
 
   try {
-    await changeOwnPassword(session.id, oldPassword, newPassword);
+    await changeOwnPassword(session.id, oldPassword, newPassword, invalidateSessions);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });
   }
@@ -28,7 +35,16 @@ export async function POST(req: NextRequest) {
     action: 'user.changePassword',
     target: session.u
   });
-  // Password berubah → pwdVersion naik → sesi saat ini (dan sesi lain akun ini)
-  // otomatis tidak valid. Arahkan klien untuk login ulang.
-  return NextResponse.json({ ok: true, reauth: true });
+
+  // Terbitkan ulang token sesi perangkat ini (pwdVersion terkini) supaya pengguna
+  // tetap login; perangkat lain terpengaruh sesuai opsi invalidateSessions.
+  const proto = req.headers.get('x-forwarded-proto')?.split(',')[0].trim() || '';
+  const secure = proto === 'https' || req.nextUrl.protocol === 'https:';
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(
+    SESSION_COOKIE,
+    createSessionToken({ id: session.id, u: session.u, role: session.role }),
+    { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: SESSION_MAX_AGE }
+  );
+  return res;
 }

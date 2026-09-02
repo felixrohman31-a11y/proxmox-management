@@ -295,11 +295,9 @@ export async function deleteUser(id: string): Promise<boolean> {
   return true;
 }
 
-export async function resetPassword(id: string, newPassword: string): Promise<boolean> {
-  seedAdminUser();
-  if (!newPassword || newPassword.length < MIN_PASSWORD) {
-    throw new Error(`Password minimal ${MIN_PASSWORD} karakter.`);
-  }
+// Tulis password baru. invalidate=true menaikkan pwdVersion (memutus semua sesi
+// lain akun ini); invalidate=false mempertahankan sesi yang sedang berjalan.
+async function setPassword(id: string, newPassword: string, invalidate: boolean): Promise<boolean> {
   const list = readUsersSync();
   const idx = list.findIndex((u) => u.id === id);
   if (idx === -1) return false;
@@ -308,18 +306,28 @@ export async function resetPassword(id: string, newPassword: string): Promise<bo
     ...list[idx],
     salt,
     hash: hashPassword(newPassword, salt),
-    pwdVersion: (list[idx].pwdVersion || 0) + 1,
+    pwdVersion: invalidate ? (list[idx].pwdVersion || 0) + 1 : list[idx].pwdVersion || 0,
     updatedAt: new Date().toISOString()
   };
   await writeUsers(list);
   return true;
 }
 
+export async function resetPassword(id: string, newPassword: string): Promise<boolean> {
+  seedAdminUser();
+  if (!newPassword || newPassword.length < MIN_PASSWORD) {
+    throw new Error(`Password minimal ${MIN_PASSWORD} karakter.`);
+  }
+  return setPassword(id, newPassword, true);
+}
+
 // Ganti password oleh user itu sendiri (wajib password lama benar).
+// invalidateSessions = putuskan sesi aktif lain (default true).
 export async function changeOwnPassword(
   id: string,
   oldPassword: string,
-  newPassword: string
+  newPassword: string,
+  invalidateSessions = true
 ): Promise<void> {
   seedAdminUser();
   const user = getUserById(id);
@@ -331,5 +339,5 @@ export async function changeOwnPassword(
   if (newPassword === oldPassword) {
     throw new Error('Password baru harus berbeda dari password lama.');
   }
-  await resetPassword(id, newPassword);
+  await setPassword(id, newPassword, invalidateSessions);
 }
