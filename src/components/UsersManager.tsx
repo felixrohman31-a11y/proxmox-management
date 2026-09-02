@@ -364,14 +364,14 @@ export default function UsersManager({
                       {new Date(u.createdAt).toLocaleDateString('id-ID')}
                     </td>
                     <td className="px-4 py-2.5">
-                      {canManage(currentRole, u.role) ? (
+                      {canManage(currentRole, u.role) && u.id !== currentUserId ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <select
                             value={u.role}
-                            disabled={acting === u.id || u.id === currentUserId}
+                            disabled={acting === u.id}
                             onChange={(e) => void changeRole(u, e.target.value as Role3)}
-                            title={u.id === currentUserId ? 'Tidak dapat mengubah peran sendiri' : L.users.fRole}
-                            className="input w-auto cursor-pointer py-1 pr-7 text-xs disabled:cursor-not-allowed disabled:opacity-50"
+                            title={L.users.fRole}
+                            className="input w-auto cursor-pointer py-1 pr-7 text-xs"
                           >
                             {rolesFor(currentRole).map((r) => (
                               <option key={r} value={r}>

@@ -49,7 +49,16 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
     patch.role = b.role;
   }
-  if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;
+  if (typeof b.enabled === 'boolean') {
+    // Super admin (otoritas teratas) tidak boleh menonaktifkan akunnya sendiri.
+    if (target.id === session.id) {
+      return NextResponse.json(
+        { error: 'Tidak dapat menonaktifkan akun sendiri.' },
+        { status: 400 }
+      );
+    }
+    patch.enabled = b.enabled;
+  }
   if (typeof b.username === 'string' && b.username.trim()) patch.username = b.username;
 
   try {
