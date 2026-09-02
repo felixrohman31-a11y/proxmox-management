@@ -23,6 +23,7 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
 - **Create Guest** — CT from LXC template, VM via ISO (upload ≤512 MB, download from URL server-side), or clone template + cloud-init
 - **VM/CT Backup** — vzdump (snapshot/suspend/stop mode, zstd/lzo/gzip), manage dump files
 - **Monitoring Graphs** — RRD history: CPU/Memory/Network/Disk IO per node & guest (hour–year)
+- **SLA Monitoring** — per-node & per-guest availability targets with compliance summary and breach detection (see [SLA Monitoring](#sla-monitoring))
 
 #### Reporting
 - **Monthly Report** — per cluster or consolidated across all clusters
@@ -52,6 +53,19 @@ Browser ──> Next.js (UI + API Routes) ──HTTPS──> Proxmox VE API (por
                  ├─ data/.secret         (encryption key, auto-generated)
                  └─ data/audit.log       (JSONL audit trail)
 ```
+
+### SLA Monitoring
+
+Availability is tracked per node and per guest against a configurable target (default **99.9%**, customisable 50–100% per entity in `data/sla.json`).
+
+- **Data source** — Proxmox RRD (`rrddata`, `timeframe=month`, `cf=AVERAGE`), one series per node and per VM/CT.
+- **"Up" definition** — an RRD sample counts as *up* when it carries a numeric `cpu` or `memused` metric. A sample with no metric means the entity was not alive at that instant and counts toward downtime.
+- **Sampling interval** — the median gap between consecutive RRD rows (≈5 minutes, 300 s fallback).
+- **Window** — from `max(month start, first active sample)` to `now` for entities currently online/running, or to `last active sample + one interval` for stopped entities (an outage after that point is treated as an intentional shutdown, not a breach).
+- **Availability** — the window is swept one interval at a time: `availability = up slots / total slots × 100` (3 decimals), where a slot is *up* if an active sample falls within ±half-interval. Downtime = `(total − up) × interval`.
+- **Result** — each entity is `ok` (actual ≥ target), `breach` (actual < target), or `no-data` (no RRD samples). The summary rolls up compliant/breach/no-data counts, average availability, and total downtime.
+
+> **Note:** RRD `timeframe=month` retains only ~30 days — months older than that report as `no-data`.
 
 ---
 
@@ -216,6 +230,7 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
 - Buat Guest: CT dari template, VM via ISO (unggah lokal / unduh URL / clone)
 - Backup VM/CT via vzdump + kelola file dump
 - Grafik Monitoring RRD per node & guest
+- **SLA Monitoring** — target ketersediaan per node & guest, deteksi breach, ringkasan kepatuhan
 
 **Pelaporan**
 - Laporan Bulanan per cluster atau gabungan seluruh cluster
@@ -229,6 +244,8 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
 - Backup konfigurasi panel ke FTP
 
 **Keamanan**: rate-limit login, password scrypt, cookie Secure/HMAC-SHA256, enkripsi AES-256-GCM, HSTS, proteksi lockout super admin
+
+**Penghitungan SLA**: ketersediaan dihitung dari rrddata Proxmox (timeframe=month, cf=AVERAGE). Sampel ber-metrik `cpu`/`memused` = hidup, tanpa metrik = downtime. Interval = median selisih antar baris RRD (±5 menit). Ketersediaan = slot hidup / total slot × 100 (target default 99,9%, dapat diatur per entitas 50–100%). Status: `ok` / `breach` / `no-data`.
 
 ### Deploy
 
