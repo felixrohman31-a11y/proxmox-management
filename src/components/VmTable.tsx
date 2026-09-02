@@ -68,7 +68,7 @@ function ActBtn({
       aria-label={title}
       onClick={onClick}
       disabled={busy}
-      className={`rounded-md border p-1.5 transition disabled:opacity-40 ${tones[tone]}`}
+      className={`rounded-md border p-1.5 transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100 ${tones[tone]}`}
     >
       {busy ? <RefreshIcon className="h-4 w-4 animate-spin" /> : children}
     </button>

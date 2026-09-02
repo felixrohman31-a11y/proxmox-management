@@ -356,7 +356,7 @@ export default function UsersManager({
                             title="Jadikan admin"
                             disabled={acting === u.id}
                             onClick={() => void changeRole(u, 'admin')}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-orange-400 disabled:opacity-40"
+                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             <UsersIcon />
                           </button>
@@ -367,7 +367,7 @@ export default function UsersManager({
                             title="Jadikan read-only"
                             disabled={acting === u.id}
                             onClick={() => void changeRole(u, 'viewer')}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-orange-400 disabled:opacity-40"
+                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             <UsersIcon />
                           </button>
@@ -381,7 +381,7 @@ export default function UsersManager({
                               setResetFor(u);
                               setResetPass('');
                             }}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-zinc-800 hover:text-orange-400 disabled:opacity-40"
+                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             <KeyIcon />
                           </button>
@@ -392,7 +392,7 @@ export default function UsersManager({
                             title="Nonaktifkan"
                             disabled={acting === u.id}
                             onClick={() => void toggleEnabled(u)}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-amber-800 hover:text-amber-300 disabled:opacity-40"
+                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-amber-800 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             <XIcon />
                           </button>
@@ -402,7 +402,7 @@ export default function UsersManager({
                             title="Aktifkan"
                             disabled={acting === u.id}
                             onClick={() => void toggleEnabled(u)}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition hover:bg-emerald-800 hover:text-emerald-300 disabled:opacity-40"
+                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-emerald-800 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             <CheckIcon />
                           </button>
@@ -413,7 +413,7 @@ export default function UsersManager({
                             title="Hapus"
                             disabled={acting === u.id}
                             onClick={() => void remove(u)}
-                            className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition hover:bg-red-500/10 disabled:opacity-40"
+                            className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition duration-150 ease-out hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
                           >
                             {acting === u.id ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <TrashIcon />}
                           </button>

@@ -9,12 +9,14 @@ const STYLES: Record<string, string> = {
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  const cls = STYLES[status.toLowerCase()] ?? 'border-zinc-700 bg-zinc-800/60 text-zinc-400';
+  const key = status.toLowerCase();
+  const cls = STYLES[key] ?? 'border-zinc-700 bg-zinc-800/60 text-zinc-400';
+  const pulse = key === 'running' || key === 'online' || key === 'active';
   return (
     <span
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize leading-none ${cls}`}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      <span className={`h-1.5 w-1.5 rounded-full bg-current ${pulse ? 'animate-pulse' : ''}`} />
       {status}
     </span>
   );

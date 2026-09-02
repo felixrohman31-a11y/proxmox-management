@@ -5,6 +5,7 @@ import ReportDownload from '@/components/ReportDownload';
 import StatusBadge from '@/components/StatusBadge';
 import StatCard, { Meter } from '@/components/StatCard';
 import TaskPanel from '@/components/TaskPanel';
+import EmptyState from '@/components/EmptyState';
 import { Th, Td } from '@/components/TableBits';
 import { AlertIcon, CubeIcon, LayersIcon, ServerIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
@@ -64,15 +65,17 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
       </PageHeader>
 
       {!cluster && (
-        <div className="card mx-auto max-w-lg p-8 text-center">
-          <LayersIcon className="mx-auto h-10 w-10 text-zinc-600" />
-          <h2 className="mt-3 text-lg font-medium text-zinc-200">{L.common.emptyClusterTitle}</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            {L.common.emptyClusterDesc}
-          </p>
-          <Link href="/dashboard/clusters" className="btn-primary mt-5">
-            Tambah Cluster
-          </Link>
+        <div className="card mx-auto max-w-lg">
+          <EmptyState
+            icon={<LayersIcon className="h-10 w-10" />}
+            title={L.common.emptyClusterTitle}
+            description={L.common.emptyClusterDesc}
+            action={
+              <Link href="/dashboard/clusters" className="btn-primary">
+                {L.common.addCluster}
+              </Link>
+            }
+          />
         </div>
       )}
 
@@ -173,7 +176,10 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
             </header>
             <ul className="divide-y divide-zinc-800/70">
               {guests.slice(0, 8).map((g) => (
-                <li key={`${g.node}-${g.vmid}`} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                <li
+                  key={`${g.node}-${g.vmid}`}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-zinc-900/40"
+                >
                   <span className="w-12 shrink-0 font-mono text-xs text-zinc-500">{g.vmid}</span>
                   <span className="min-w-0 flex-1 truncate text-zinc-200">
                     {g.name}

@@ -104,13 +104,14 @@ export function Sidebar({ username, role }: { username: string; role: NavRole })
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 ${
                     active
-                      ? 'bg-orange-500/10 font-medium text-orange-400'
+                      ? 'bg-orange-500/10 font-medium text-orange-400 shadow-[inset_2px_0_0_0_#f97316]'
                       : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'
                   }`}
                 >
-                  {Ico ? <Ico className="h-4 w-4" /> : null} {item.label}
+                  {Ico ? <Ico className={`h-4 w-4 transition-transform duration-150 ${active ? 'scale-110' : ''}`} /> : null}{' '}
+                  {item.label}
                 </Link>
               );
             })}
@@ -133,7 +134,7 @@ export function Sidebar({ username, role }: { username: string; role: NavRole })
           <button
             onClick={logout}
             title={L.nav.logout}
-            className="rounded-md p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-red-400"
+            className="rounded-md p-2 text-zinc-500 transition duration-150 hover:bg-zinc-900 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95"
           >
             <LogoutIcon />
           </button>
@@ -164,7 +165,7 @@ export function MobileHeader({ username, role }: { username: string; role: NavRo
           <button
             onClick={logout}
             title={L.nav.logout}
-            className="rounded-md p-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-red-400"
+            className="rounded-md p-2 text-zinc-500 transition duration-150 hover:bg-zinc-900 hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95"
           >
             <LogoutIcon />
           </button>
@@ -175,7 +176,7 @@ export function MobileHeader({ username, role }: { username: string; role: NavRo
           <Link
             key={item.href}
             href={item.href}
-            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 ${
               isActive(pathname, item.href)
                 ? 'bg-orange-500/15 text-orange-400'
                 : 'text-zinc-400 hover:bg-zinc-900'
