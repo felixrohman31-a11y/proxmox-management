@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default function SettingsPage() {
   const L = serverT();
   const session = getSessionFromCookies();
-  const isAdmin = session?.role === 'admin';
+  const isAdmin = session?.role === 'superadmin' || session?.role === 'admin';
   const clusters = listClustersSync();
   return (
     <>

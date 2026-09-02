@@ -17,7 +17,7 @@ import {
 } from './icons';
 import { useL } from './lang-context';
 
-type NavRole = 'admin' | 'viewer';
+type NavRole = 'superadmin' | 'admin' | 'auditor';
 
 interface NavItem {
   href: string;
@@ -78,7 +78,7 @@ function buildGroups(L: ReturnType<typeof useL>): NavGroup[] {
 export function Sidebar({ username, role }: { username: string; role: NavRole }) {
   const pathname = usePathname();
   const L = useL();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'superadmin' || role === 'admin';
   const groups = buildGroups(L)
     .map((g) => ({
       ...g,
@@ -126,8 +126,8 @@ export function Sidebar({ username, role }: { username: string; role: NavRole })
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm text-zinc-300">{username}</span>
-              <span className={`block text-[10px] font-semibold uppercase tracking-wide ${isAdmin ? 'text-orange-400/80' : 'text-zinc-500'}`}>
-                {isAdmin ? L.role.admin : L.role.viewer}
+              <span className={`block text-[10px] font-semibold uppercase tracking-wide ${role === 'superadmin' ? 'text-violet-300' : role === 'admin' ? 'text-orange-400/80' : 'text-zinc-500'}`}>
+                {role === 'superadmin' ? L.role.superadmin : role === 'admin' ? L.role.admin : L.role.auditor}
               </span>
             </span>
           </div>
@@ -147,7 +147,7 @@ export function Sidebar({ username, role }: { username: string; role: NavRole })
 export function MobileHeader({ username, role }: { username: string; role: NavRole }) {
   const pathname = usePathname();
   const L = useL();
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'superadmin' || role === 'admin';
   const groups = buildGroups(L)
     .map((g) => ({
       ...g,

@@ -1,21 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies, requireAdmin } from '@/lib/session';
+import { getSessionFromCookies, canOperate } from '@/lib/session';
 import { appendAudit } from '@/lib/audit';
-import { deleteUser, getUserById, resetPassword, updateUser, type UserRole } from '@/lib/users';
+import {
+  assignableRoles,
+  canManageUser,
+  deleteUser,
+  getUserById,
+  resetPassword,
+  updateUser,
+  type UserRole
+} from '@/lib/users';
 
 type Ctx = { params: { id: string } };
 
-function denied() {
-  return NextResponse.json({ error: 'Akses ditolak.' }, { status: 403 });
+function denied(msg = 'Akses ditolak.') {
+  return NextResponse.json({ error: msg }, { status: 403 });
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
-  if (!requireAdmin(session)) return denied();
+  if (!canOperate(session)) return denied();
 
   const target = getUserById(ctx.params.id);
   if (!target) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
+  if (!canManageUser(session.role, target.role)) {
+    return denied('Anda tidak memiliki hak atas user dengan peran ini.');
+  }
 
   let b: Record<string, unknown>;
   try {
@@ -24,15 +35,19 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: 'Body tidak valid.' }, { status: 400 });
   }
 
-  // Self-edit diperbolehkan. Keamanan lockout tetap dijaga oleh store: updateUser
-  // menolak menurunkan/menonaktifkan admin terakhir, sehingga admin tidak bisa
-  // mengunci dirinya dari sistem.
   const patch: { role?: UserRole; enabled?: boolean; username?: string } = {};
-  if (b.role === 'admin' || b.role === 'viewer') patch.role = b.role as UserRole;
+  if (b.role === 'superadmin' || b.role === 'admin' || b.role === 'auditor') {
+    if (!assignableRoles(session.role).includes(b.role)) {
+      return denied('Anda tidak memiliki hak untuk memberikan peran ini.');
+    }
+    patch.role = b.role;
+  }
   if (typeof b.enabled === 'boolean') patch.enabled = b.enabled;
   if (typeof b.username === 'string' && b.username.trim()) patch.username = b.username;
 
   try {
+    // Self-edit diperbolehkan bila actor berhak atas peran target; guard "super
+    // admin terakhir" di store mencegah actor mengunci dirinya dari sistem.
     const updated = await updateUser(ctx.params.id, patch);
     if (!updated) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
     await appendAudit({
@@ -51,12 +66,15 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 export async function DELETE(_req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
-  if (!requireAdmin(session)) return denied();
+  if (!canOperate(session)) return denied();
 
   const target = getUserById(ctx.params.id);
   if (!target) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
   if (target.id === session.id) {
     return NextResponse.json({ error: 'Tidak dapat menghapus akun sendiri.' }, { status: 400 });
+  }
+  if (!canManageUser(session.role, target.role)) {
+    return denied('Anda tidak memiliki hak atas user dengan peran ini.');
   }
 
   try {
@@ -74,11 +92,11 @@ export async function DELETE(_req: NextRequest, ctx: Ctx) {
   }
 }
 
-// POST /api/users/[id]/reset — reset password oleh admin (tanpa password lama).
+// POST /api/users/[id]/reset — reset password oleh operator (tanpa password lama).
 export async function POST(req: NextRequest, ctx: Ctx) {
   const session = getSessionFromCookies();
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
-  if (!requireAdmin(session)) return denied();
+  if (!canOperate(session)) return denied();
 
   const target = getUserById(ctx.params.id);
   if (!target) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
@@ -87,6 +105,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       { error: 'Ganti password sendiri melalui menu Akun.' },
       { status: 400 }
     );
+  }
+  if (!canManageUser(session.role, target.role)) {
+    return denied('Anda tidak memiliki hak atas user dengan peran ini.');
   }
 
   let b: Record<string, unknown>;

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
 
   attempts.delete(ip);
   const uName = user ? user.username : (process.env.ADMIN_USER || 'admin').trim().toLowerCase();
-  const role = user ? user.role : 'admin';
+  const role = user ? user.role : 'superadmin';
   await appendAudit({ ts: new Date().toISOString(), user: uName, action: 'login.ok', target: ip, ip });
   // Secure cookie hanya saat koneksi benar-benar HTTPS (langsung atau lewat
   // proxy yang meneruskan x-forwarded-proto). Ini membuat sesi tetap bekerja

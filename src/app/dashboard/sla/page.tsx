@@ -129,7 +129,7 @@ export default async function SlaPage({
   const sp = searchParams ?? {};
   const L = serverT();
   const session = getSessionFromCookies();
-  const readOnly = session?.role !== 'admin';
+  const readOnly = session?.role === 'auditor';
   const en = getServerLocale() === 'en';
   const { clusters, cluster } = resolveCluster(sp.c);
 

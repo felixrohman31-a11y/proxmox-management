@@ -62,7 +62,7 @@ export default async function VmsPage({ searchParams }: { searchParams?: { c?: s
           host={cluster.host}
           port={cluster.port}
           guests={guests}
-          readOnly={session?.role !== 'admin'}
+          readOnly={session?.role === 'auditor'}
         />
       )}
     </>

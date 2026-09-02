@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSessionFromCookies, requireAdmin } from '@/lib/session';
+import { getSessionFromCookies, canOperate } from '@/lib/session';
 import { appendAudit } from '@/lib/audit';
-import { createUser, listUsers, type UserRole } from '@/lib/users';
+import { assignableRoles, createUser, listUsers, type UserRole } from '@/lib/users';
 
-function denied() {
-  return NextResponse.json({ error: 'Akses ditolak.' }, { status: 403 });
+function denied(msg = 'Akses ditolak.') {
+  return NextResponse.json({ error: msg }, { status: 403 });
 }
 
 export async function GET() {
   const session = getSessionFromCookies();
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
-  if (!requireAdmin(session)) return denied();
+  if (!canOperate(session)) return denied();
   return NextResponse.json({ data: listUsers() });
 }
 
 export async function POST(req: NextRequest) {
   const session = getSessionFromCookies();
   if (!session) return NextResponse.json({ error: 'Tidak terautentikasi.' }, { status: 401 });
-  if (!requireAdmin(session)) return denied();
+  if (!canOperate(session)) return denied();
 
   let b: Record<string, unknown>;
   try {
@@ -27,11 +27,15 @@ export async function POST(req: NextRequest) {
   }
   const username = String(b.username ?? '');
   const password = String(b.password ?? '');
-  const role: UserRole = b.role === 'viewer' ? 'viewer' : 'admin';
+  const roleIn = String(b.role ?? '') as UserRole;
+  const allowed = assignableRoles(session.role);
+  if (!allowed.includes(roleIn)) {
+    return denied('Anda tidak memiliki hak untuk memberikan peran ini.');
+  }
   const enabled = b.enabled !== false;
 
   try {
-    const created = await createUser({ username, password, role, enabled });
+    const created = await createUser({ username, password, role: roleIn, enabled });
     await appendAudit({
       ts: new Date().toISOString(),
       user: session.u,

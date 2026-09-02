@@ -11,7 +11,32 @@ import { ensureDataDir } from './secrets';
 // login lama (versi single-admin) tetap berfungsi setelah upgrade.
 // ---------------------------------------------------------------------------
 
-export type UserRole = 'admin' | 'viewer';
+export type UserRole = 'superadmin' | 'admin' | 'auditor';
+
+// Hirarki peran: superadmin > admin (administrator) > auditor.
+export function roleRank(r: UserRole): number {
+  return r === 'superadmin' ? 3 : r === 'admin' ? 2 : 1;
+}
+
+// Apakah actor boleh mengelola akun target (reset password, ubah role/status, hapus)?
+export function canManageUser(actor: UserRole, target: UserRole): boolean {
+  if (actor === 'superadmin') return true;
+  if (actor === 'admin') return target === 'auditor';
+  return false;
+}
+
+// Peran yang boleh diberikan actor saat create ATAU ubah role.
+export function assignableRoles(actor: UserRole): UserRole[] {
+  if (actor === 'superadmin') return ['superadmin', 'admin', 'auditor'];
+  if (actor === 'admin') return ['admin', 'auditor'];
+  return [];
+}
+
+function normalizeRole(r: unknown): UserRole {
+  if (r === 'superadmin') return 'superadmin';
+  if (r === 'auditor' || r === 'viewer') return 'auditor'; // legacy viewer -> auditor
+  return 'admin'; // legacy/lain -> admin (administrator)
+}
 
 export interface StoredUser {
   id: string;
@@ -86,7 +111,7 @@ export function readUsersSync(): StoredUser[] {
     if (!Array.isArray(parsed)) return [];
     return (parsed as StoredUser[]).map((u) => ({
       ...u,
-      role: u.role === 'admin' ? 'admin' : 'viewer',
+      role: normalizeRole(u.role),
       pwdVersion: typeof u.pwdVersion === 'number' ? u.pwdVersion : 0
     }));
   } catch {
@@ -122,21 +147,37 @@ function validateInput(input: UserInput): string | null {
   return null;
 }
 
-// Seed admin pertama dari env saat modul di-load pertama kali. Idempotent:
-// hanya membuat bila file belum ada ATAU belum ada satupun user admin.
+// Seed super admin pertama dari env saat modul di-load pertama kali. Idempotent:
+// - akun env yang sudah ada (legacy 2 role) dipromosikan menjadi superadmin;
+// - bila belum ada superadmin sama sekali, buat baru dari env.
 // Sinkron (bukan async) agar pembaca sync berikutnya langsung melihat hasilnya.
 export function seedAdminUser(): void {
   try {
     const existing = readUsersSync();
-    if (existing.some((u) => u.role === 'admin')) return;
-    const list = [...existing];
     const adminName = (process.env.ADMIN_USER || 'admin').trim().toLowerCase();
     const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+
+    const env = existing.find((u) => u.username === adminName);
+    if (env) {
+      if (env.role !== 'superadmin') {
+        env.role = 'superadmin';
+        env.updatedAt = new Date().toISOString();
+        const fp = usersFile();
+        const tmp = `${fp}.${process.pid}.seed.tmp`;
+        fs.writeFileSync(tmp, JSON.stringify(existing, null, 2), 'utf8');
+        fs.renameSync(tmp, fp);
+      }
+      return;
+    }
+
+    if (existing.some((u) => u.role === 'superadmin')) return;
+
+    const list = [...existing];
     const salt = makeSalt();
     list.push({
       id: crypto.randomUUID(),
       username: adminName,
-      role: 'admin',
+      role: 'superadmin',
       enabled: true,
       pwdVersion: 1,
       salt,
@@ -186,7 +227,7 @@ export async function createUser(input: UserInput): Promise<PublicUser> {
   const rec: StoredUser = {
     id: crypto.randomUUID(),
     username,
-    role: input.role === 'admin' ? 'admin' : 'viewer',
+    role: normalizeRole(input.role),
     enabled: input.enabled !== false,
     pwdVersion: 1,
     salt,
@@ -210,15 +251,18 @@ export async function updateUser(
   const idx = list.findIndex((u) => u.id === id);
   if (idx === -1) return null;
   const cur = list[idx];
-  const isLastAdmin =
-    cur.role === 'admin' && list.filter((u) => u.role === 'admin' && u.enabled).length === 1;
+  const isLastSuperAdmin =
+    cur.role === 'superadmin' &&
+    list.filter((u) => u.role === 'superadmin' && u.enabled).length === 1;
 
   const nextRole: UserRole =
-    patch.role === 'admin' || patch.role === 'viewer' ? patch.role : cur.role;
+    patch.role === 'superadmin' || patch.role === 'admin' || patch.role === 'auditor'
+      ? patch.role
+      : cur.role;
   const nextEnabled = patch.enabled !== undefined ? Boolean(patch.enabled) : cur.enabled;
 
-  if (isLastAdmin && (nextRole !== 'admin' || !nextEnabled)) {
-    throw new Error('Tidak dapat menurunkan/menonaktifkan admin terakhir.');
+  if (isLastSuperAdmin && (nextRole !== 'superadmin' || !nextEnabled)) {
+    throw new Error('Tidak dapat menurunkan/menonaktifkan super admin terakhir.');
   }
 
   let nextUsername = cur.username;
@@ -242,9 +286,10 @@ export async function deleteUser(id: string): Promise<boolean> {
   const list = readUsersSync();
   const target = list.find((u) => u.id === id);
   if (!target) return false;
-  const isLastAdmin =
-    target.role === 'admin' && list.filter((u) => u.role === 'admin' && u.enabled).length === 1;
-  if (isLastAdmin) throw new Error('Tidak dapat menghapus admin terakhir.');
+  const isLastSuperAdmin =
+    target.role === 'superadmin' &&
+    list.filter((u) => u.role === 'superadmin' && u.enabled).length === 1;
+  if (isLastSuperAdmin) throw new Error('Tidak dapat menghapus super admin terakhir.');
   const next = list.filter((u) => u.id !== id);
   await writeUsers(next);
   return true;
@@ -287,9 +332,4 @@ export async function changeOwnPassword(
     throw new Error('Password baru harus berbeda dari password lama.');
   }
   await resetPassword(id, newPassword);
-}
-
-export function getLastAdminCount(): number {
-  seedAdminUser();
-  return readUsersSync().filter((u) => u.role === 'admin' && u.enabled).length;
 }

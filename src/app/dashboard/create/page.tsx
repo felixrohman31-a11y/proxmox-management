@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export default async function CreatePage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
   const L = serverT();
   const session = getSessionFromCookies();
-  const readOnly = session?.role !== 'admin';
+  const readOnly = session?.role === 'auditor';
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
   let nodes: { node: string; status: string }[] = [];

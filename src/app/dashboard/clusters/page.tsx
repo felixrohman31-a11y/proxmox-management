@@ -10,7 +10,7 @@ export default function ClustersPage() {
   const L = serverT();
   const session = getSessionFromCookies();
   const clusters = listClustersSync();
-  const readOnly = session?.role !== 'admin';
+  const readOnly = session?.role === 'auditor';
   return (
     <>
       <PageHeader title={L.clusters.title} subtitle={L.clusters.sub} />

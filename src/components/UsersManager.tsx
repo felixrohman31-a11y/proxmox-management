@@ -4,17 +4,37 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useL } from './lang-context';
 import { fmt } from '@/lib/i18n-dict';
-import { CheckIcon, PlusIcon, RefreshIcon, TrashIcon, UsersIcon, XIcon, KeyIcon } from './icons';
+import { CheckIcon, PlusIcon, RefreshIcon, TrashIcon, XIcon, KeyIcon } from './icons';
 import type { ReactNode } from 'react';
 
 // Duplikat ringan dari PublicUser (lib/users) agar komponen client tidak
 // menarik kode server (fs/crypto) ke bundel.
+type Role3 = 'superadmin' | 'admin' | 'auditor';
+
 interface UserRow {
   id: string;
   username: string;
-  role: 'admin' | 'viewer';
+  role: Role3;
   enabled: boolean;
   createdAt: string;
+}
+
+// Peran yang boleh diberikan actor (cerminan assignableRoles di lib/users).
+function rolesFor(actor: Role3): Role3[] {
+  if (actor === 'superadmin') return ['superadmin', 'admin', 'auditor'];
+  if (actor === 'admin') return ['admin', 'auditor'];
+  return [];
+}
+
+function roleLabel(L: ReturnType<typeof useL>, r: Role3): string {
+  return r === 'superadmin' ? L.users.roleSuperadmin : r === 'admin' ? L.users.roleAdmin : L.users.roleAuditor;
+}
+
+// Apakah actor boleh mengelola akun berperan target (cerminan canManageUser).
+function canManage(actor: Role3, target: Role3): boolean {
+  if (actor === 'superadmin') return true;
+  if (actor === 'admin') return target === 'auditor';
+  return false;
 }
 
 function Toast({ kind, msg }: { kind: 'ok' | 'err'; msg: string }) {
@@ -31,15 +51,17 @@ function Toast({ kind, msg }: { kind: 'ok' | 'err'; msg: string }) {
   );
 }
 
-function Badge({ children, tone }: { children: ReactNode; tone: 'admin' | 'viewer' | 'active' | 'off' }) {
+function Badge({ children, tone }: { children: ReactNode; tone: 'superadmin' | 'admin' | 'auditor' | 'active' | 'off' }) {
   const cls =
-    tone === 'admin'
-      ? 'bg-orange-500/10 text-orange-400'
-      : tone === 'viewer'
-        ? 'bg-sky-500/10 text-sky-400'
-        : tone === 'active'
-          ? 'bg-emerald-500/10 text-emerald-400'
-          : 'bg-zinc-800 text-zinc-500';
+    tone === 'superadmin'
+      ? 'bg-violet-500/10 text-violet-300'
+      : tone === 'admin'
+        ? 'bg-orange-500/10 text-orange-400'
+        : tone === 'auditor'
+          ? 'bg-sky-500/10 text-sky-400'
+          : tone === 'active'
+            ? 'bg-emerald-500/10 text-emerald-400'
+            : 'bg-zinc-800 text-zinc-500';
   return <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${cls}`}>{children}</span>;
 }
 
@@ -48,7 +70,7 @@ export default function UsersManager({
   currentRole
 }: {
   currentUserId: string;
-  currentRole: 'admin' | 'viewer';
+  currentRole: Role3;
 }) {
   const L = useL();
   const router = useRouter();
@@ -59,7 +81,7 @@ export default function UsersManager({
   const [showForm, setShowForm] = useState(false);
   const [uname, setUname] = useState('');
   const [pass, setPass] = useState('');
-  const [role, setRole] = useState<'admin' | 'viewer'>('viewer');
+  const [role, setRole] = useState<Role3>('auditor');
   const [enabled, setEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -97,7 +119,7 @@ export default function UsersManager({
   function resetForm() {
     setUname('');
     setPass('');
-    setRole('viewer');
+    setRole('auditor');
     setEnabled(true);
     setShowForm(false);
   }
@@ -150,7 +172,7 @@ export default function UsersManager({
     }
   }
 
-  async function changeRole(u: UserRow, nextRole: 'admin' | 'viewer') {
+  async function changeRole(u: UserRow, nextRole: Role3) {
     if (nextRole === u.role) return;
     setActing(u.id);
     try {
@@ -258,13 +280,8 @@ export default function UsersManager({
             </div>
             <div>
               <label className="label">{L.users.fRole}</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    ['viewer', L.users.roleViewer],
-                    ['admin', L.users.roleAdmin]
-                  ] as const
-                ).map(([val, label]) => (
+              <div className="grid grid-cols-3 gap-2">
+                {rolesFor(currentRole).map((val) => (
                   <button
                     type="button"
                     key={val}
@@ -275,7 +292,7 @@ export default function UsersManager({
                         : 'border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:border-zinc-700'
                     }`}
                   >
-                    {label}
+                    {roleLabel(L, val)}
                   </button>
                 ))}
               </div>
@@ -336,9 +353,7 @@ export default function UsersManager({
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <Badge tone={u.role === 'admin' ? 'admin' : 'viewer'}>
-                        {u.role === 'admin' ? L.users.roleAdmin : L.users.roleViewer}
-                      </Badge>
+                      <Badge tone={u.role}>{roleLabel(L, u.role)}</Badge>
                     </td>
                     <td className="px-4 py-2.5">
                       <Badge tone={u.enabled ? 'active' : 'off'}>
@@ -349,76 +364,71 @@ export default function UsersManager({
                       {new Date(u.createdAt).toLocaleDateString('id-ID')}
                     </td>
                     <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {u.role === 'viewer' && (
-                          <button
-                            type="button"
-                            title="Jadikan admin"
+                      {canManage(currentRole, u.role) ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <select
+                            value={u.role}
                             disabled={acting === u.id}
-                            onClick={() => void changeRole(u, 'admin')}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+                            onChange={(e) => void changeRole(u, e.target.value as Role3)}
+                            title={L.users.fRole}
+                            className="input w-auto cursor-pointer py-1 pr-7 text-xs"
                           >
-                            <UsersIcon />
-                          </button>
-                        )}
-                        {u.role === 'admin' && (
-                          <button
-                            type="button"
-                            title="Jadikan read-only"
-                            disabled={acting === u.id}
-                            onClick={() => void changeRole(u, 'viewer')}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-                          >
-                            <UsersIcon />
-                          </button>
-                        )}
-                        {u.id !== currentUserId && (
-                          <button
-                            type="button"
-                            title="Reset password"
-                            disabled={acting === u.id}
-                            onClick={() => {
-                              setResetFor(u);
-                              setResetPass('');
-                            }}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-                          >
-                            <KeyIcon />
-                          </button>
-                        )}
-                        {u.enabled ? (
-                          <button
-                            type="button"
-                            title="Nonaktifkan"
-                            disabled={acting === u.id}
-                            onClick={() => void toggleEnabled(u)}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-amber-800 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-                          >
-                            <XIcon />
-                          </button>
-                        ) : !u.enabled ? (
-                          <button
-                            type="button"
-                            title="Aktifkan"
-                            disabled={acting === u.id}
-                            onClick={() => void toggleEnabled(u)}
-                            className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-emerald-800 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-                          >
-                            <CheckIcon />
-                          </button>
-                        ) : null}
-                        {u.id !== currentUserId && (
-                          <button
-                            type="button"
-                            title="Hapus"
-                            disabled={acting === u.id}
-                            onClick={() => void remove(u)}
-                            className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition duration-150 ease-out hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
-                          >
-                            {acting === u.id ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <TrashIcon />}
-                          </button>
-                        )}
-                      </div>
+                            {rolesFor(currentRole).map((r) => (
+                              <option key={r} value={r}>
+                                {roleLabel(L, r)}
+                              </option>
+                            ))}
+                          </select>
+                          {u.id !== currentUserId && (
+                            <button
+                              type="button"
+                              title="Reset password"
+                              disabled={acting === u.id}
+                              onClick={() => {
+                                setResetFor(u);
+                                setResetPass('');
+                              }}
+                              className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-zinc-800 hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+                            >
+                              <KeyIcon />
+                            </button>
+                          )}
+                          {u.enabled ? (
+                            <button
+                              type="button"
+                              title="Nonaktifkan"
+                              disabled={acting === u.id}
+                              onClick={() => void toggleEnabled(u)}
+                              className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-amber-800 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+                            >
+                              <XIcon />
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              title="Aktifkan"
+                              disabled={acting === u.id}
+                              onClick={() => void toggleEnabled(u)}
+                              className="rounded-md border border-zinc-700 p-1.5 text-zinc-400 transition duration-150 ease-out hover:bg-emerald-800 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+                            >
+                              <CheckIcon />
+                            </button>
+                          )}
+                          {u.id !== currentUserId && (
+                            <button
+                              type="button"
+                              title="Hapus"
+                              disabled={acting === u.id}
+                              onClick={() => void remove(u)}
+                              className="rounded-md border border-red-800/60 p-1.5 text-red-400 transition duration-150 ease-out hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 active:scale-95 disabled:opacity-40 disabled:active:scale-100"
+                            >
+                              {acting === u.id ? <RefreshIcon className="h-4 w-4 animate-spin" /> : <TrashIcon />}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-zinc-700">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}

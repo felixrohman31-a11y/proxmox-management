@@ -60,11 +60,17 @@ export function getSessionFromCookies(): SessionPayload | null {
   return { ...payload, role: stored.role, id: stored.id };
 }
 
-export function requireAdmin(session: SessionPayload | null): boolean {
-  return session !== null && session.role === 'admin';
+export function requireSuperAdmin(session: SessionPayload | null): boolean {
+  return session !== null && session.role === 'superadmin';
 }
 
-// "write" = semua aksi yang mengubah state (role viewer tidak boleh).
+// "operator" = superadmin ATAU admin: boleh akses manajemen user & mengubah state
+// cluster/VM dll. Auditor (role terbawah) = read-only di mana-mana.
+export function canOperate(session: SessionPayload | null): boolean {
+  return session !== null && (session.role === 'superadmin' || session.role === 'admin');
+}
+
+// "write" = semua aksi yang mengubah state (auditor tidak boleh).
 export function canWrite(session: SessionPayload | null): boolean {
-  return session !== null && session.role === 'admin';
+  return canOperate(session);
 }

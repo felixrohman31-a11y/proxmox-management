@@ -5,7 +5,7 @@ import { MobileHeader, Sidebar } from '@/components/nav';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = getSessionFromCookies();
   if (!session) redirect('/login');
-  const role = session.role === 'admin' ? 'admin' : 'viewer';
+  const role = session.role;
   return (
     <div className="min-h-screen">
       <MobileHeader username={session.u} role={role} />

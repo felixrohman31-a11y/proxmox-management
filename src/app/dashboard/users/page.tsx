@@ -10,7 +10,7 @@ export default async function UsersPage() {
   const session = getSessionFromCookies();
   const L = serverT();
   if (!session) redirect('/login');
-  if (session.role !== 'admin') redirect('/dashboard');
+  if (session.role !== 'superadmin' && session.role !== 'admin') redirect('/dashboard');
 
   return (
     <>
