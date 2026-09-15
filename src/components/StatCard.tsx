@@ -34,9 +34,12 @@ export default function StatCard({
 
 export function Meter({ value, className = '' }: { value: number; className?: string }) {
   const v = Math.max(0, Math.min(100, value));
-  const color = v < 55 ? 'bg-emerald-500' : v < 80 ? 'bg-amber-400' : 'bg-red-500';
+  const color = v < 80 ? 'bg-emerald-500' : v < 90 ? 'bg-amber-400' : 'bg-red-500';
   return (
-    <div className={`h-1.5 w-full overflow-hidden rounded-full bg-zinc-800 ${className}`}>
+    <div
+      className={`h-1.5 w-full overflow-hidden rounded-full bg-zinc-800 ${className}`}
+      title="Hijau <80% · Kuning 80–90% · Merah ≥90%"
+    >
       <div
         className={`h-full rounded-full transition-all duration-500 ease-out ${color}`}
         style={{ width: `${v}%` }}

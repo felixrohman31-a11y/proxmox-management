@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookies } from '@/lib/session';
-import { gatherMonthlyData } from '@/lib/report-data';
+import { gatherMonthlyData, ymdToEpochWIB } from '@/lib/report-data';
 import { buildMonthlyReport } from '@/lib/report';
 import { buildMonthlyReportHtml, buildConsolidatedReportHtml, type ConsolidatedItem } from '@/lib/report-html';
 import { listClustersSync } from '@/lib/store';
@@ -17,10 +17,30 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 
   const now = new Date();
-  const y = Number(req.nextUrl.searchParams.get('year')) || now.getFullYear();
-  const m = Number(req.nextUrl.searchParams.get('month')) || now.getMonth() + 1;
-  if (m < 1 || m > 12 || y < 2000 || y > 2100) {
-    return NextResponse.json({ error: 'Parameter tahun/bulan tidak valid.' }, { status: 400 });
+  // Rentang periode: prioritas start/end (YYYY-MM-DD), fallback year/month.
+  const startParam = req.nextUrl.searchParams.get('start');
+  const endParam = req.nextUrl.searchParams.get('end');
+  let startEpoch: number;
+  let endEpoch: number;
+  const yDef = now.getFullYear();
+  const mDef = now.getMonth() + 1;
+  if (startParam && /^\d{4}-\d{2}-\d{2}$/.test(startParam)) {
+    const [sy, sm, sd] = startParam.split('-').map(Number);
+    startEpoch = ymdToEpochWIB(sy, sm, sd);
+    if (endParam && /^\d{4}-\d{2}-\d{2}$/.test(endParam)) {
+      const [ey, em, ed] = endParam.split('-').map(Number);
+      endEpoch = ymdToEpochWIB(ey, em, ed + 1); // eksklusif: sertakan hari terakhir penuh
+    } else {
+      endEpoch = ymdToEpochWIB(sy, sm, sd + 1);
+    }
+  } else {
+    const y = Number(req.nextUrl.searchParams.get('year')) || yDef;
+    const m = Number(req.nextUrl.searchParams.get('month')) || mDef;
+    if (m < 1 || m > 12 || y < 2000 || y > 2100) {
+      return NextResponse.json({ error: 'Parameter tahun/bulan tidak valid.' }, { status: 400 });
+    }
+    startEpoch = ymdToEpochWIB(y, m, 1);
+    endEpoch = ymdToEpochWIB(y, m + 1, 1);
   }
   const format = req.nextUrl.searchParams.get('format') === 'txt' ? 'txt' : 'html';
   const inline = req.nextUrl.searchParams.get('view') === '1';
@@ -34,7 +54,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
         return NextResponse.json({ error: 'Cluster tidak ditemukan.' }, { status: 404 });
       }
       if (format === 'txt') {
-        const { filename, content } = await buildMonthlyReport(cluster, y, m, locale);
+        const { filename, content } = await buildMonthlyReport(cluster, startEpoch, endEpoch, locale);
         return new NextResponse(content, {
           status: 200,
           headers: {
@@ -43,15 +63,15 @@ export async function GET(req: NextRequest, ctx: Ctx) {
           }
         });
       }
-      const data = await gatherMonthlyData(cluster, y, m);
-      return htmlResponse(buildMonthlyReportHtml(data, locale), cluster.name, y, m, inline);
+      const data = await gatherMonthlyData(cluster, startEpoch, endEpoch);
+      return htmlResponse(buildMonthlyReportHtml(data, locale), cluster.name, startEpoch, endEpoch, inline);
     }
 
     // ===== mode gabungan seluruh cluster =====
     const items: ConsolidatedItem[] = [];
     for (const cluster of clusters) {
       try {
-        items.push({ cluster, data: await gatherMonthlyData(cluster, y, m) });
+        items.push({ cluster, data: await gatherMonthlyData(cluster, startEpoch, endEpoch) });
       } catch (e) {
         items.push({ cluster, error: (e as Error).message });
       }
@@ -64,31 +84,37 @@ export async function GET(req: NextRequest, ctx: Ctx) {
           parts.push(`##### ${it.cluster.name} — GAGAL: ${it.error} #####`);
           continue;
         }
-        const { content } = await buildMonthlyReport(it.cluster, y, m, locale);
+        const { content } = await buildMonthlyReport(it.cluster, startEpoch, endEpoch, locale);
         parts.push(`########## CLUSTER: ${it.cluster.name} ##########\r\n\r\n${content}`);
       }
+      const d1 = new Date(startEpoch * 1000);
+      const d2 = new Date(endEpoch * 1000);
+      const ds = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
       return new NextResponse(parts.join('\r\n\r\n'), {
         status: 200,
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
-          'Content-Disposition': `attachment; filename="Laporan-Virtualisasi-Semua-Cluster-${y}-${String(m).padStart(2, '0')}.txt"`
+          'Content-Disposition': `attachment; filename="Laporan-Virtualisasi-Semua-Cluster-${ds(d1)}_${ds(d2)}.txt"`
         }
       });
     }
 
-    return htmlResponse(buildConsolidatedReportHtml(y, m, items, locale), 'Semua-Cluster', y, m, inline);
+    return htmlResponse(buildConsolidatedReportHtml(startEpoch, endEpoch, items, locale), 'Semua-Cluster', startEpoch, endEpoch, inline);
   } catch (e) {
     return NextResponse.json({ error: `Gagal membuat laporan: ${(e as Error).message}` }, { status: 502 });
   }
 }
 
-function htmlResponse(html: string, name: string, y: number, m: number, inline: boolean): NextResponse {
+function htmlResponse(html: string, name: string, startEpoch: number, endEpoch: number, inline: boolean): NextResponse {
   const slug = name.replace(/[^a-zA-Z0-9]+/g, '-');
+  const d1 = new Date(startEpoch * 1000);
+  const d2 = new Date(endEpoch * 1000);
+  const ds = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
   return new NextResponse(html, {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${`Laporan-Virtualisasi-${slug}-${y}-${String(m).padStart(2, '0')}`}.html"`
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${`Laporan-Virtualisasi-${slug}-${ds(d1)}_${ds(d2)}`}.html"`
     }
   });
 }

@@ -19,6 +19,7 @@ export interface NodeRow {
   diskUsed: number;
   diskMax: number;
   uptime: number;
+  pveVersion?: string;
 }
 
 export interface GuestRow {

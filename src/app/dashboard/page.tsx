@@ -6,6 +6,9 @@ import StatusBadge from '@/components/StatusBadge';
 import StatCard, { Meter } from '@/components/StatCard';
 import TaskPanel from '@/components/TaskPanel';
 import EmptyState from '@/components/EmptyState';
+import AutoRefresh from '@/components/AutoRefresh';
+import DensityToggle from '@/components/DensityToggle';
+import GuestList from '@/components/GuestList';
 import { Th, Td } from '@/components/TableBits';
 import { AlertIcon, CubeIcon, LayersIcon, ServerIcon } from '@/components/icons';
 import { PveError } from '@/lib/pve';
@@ -26,16 +29,20 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
   let error: string | null = null;
   let nodes: Awaited<ReturnType<typeof fetchResources>>['nodes'] = [];
   let guests: Awaited<ReturnType<typeof fetchResources>>['guests'] = [];
+  let pveVersion: string | undefined;
 
   if (cluster) {
     try {
       const data = await fetchResources(cluster.id);
       nodes = data.nodes;
       guests = data.guests;
+      pveVersion = data.pveVersion;
     } catch (e) {
       error = e instanceof PveError ? e.message : (e as Error).message;
     }
   }
+
+  const compat = pveVersion ? /^([45])\./.test(pveVersion) : false;
 
   const onlineNodes = nodes.filter((n) => n.status === 'online');
   const totalCores = nodes.reduce((s, n) => s + n.maxCpu, 0);
@@ -58,10 +65,32 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
     <>
       <PageHeader
         title={L.overview.title}
-        subtitle={cluster ? fmt(L.overview.subFor, { name: cluster.name }) : L.overview.subNone}
+        subtitle={
+          <span className="flex flex-wrap items-center gap-2">
+            <span>{cluster ? fmt(L.overview.subFor, { name: cluster.name }) : L.overview.subNone}</span>
+            {pveVersion && (
+              <span className="inline-flex h-10 items-center rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 text-sm text-zinc-300">
+                {fmt(L.overview.pveVersion, { v: pveVersion })}
+              </span>
+            )}
+            {compat && (
+              <span
+                className="inline-flex h-10 items-center rounded-lg border border-amber-700/50 bg-amber-500/10 px-3 text-sm font-medium text-amber-400"
+                title={fmt(L.overview.compatMode, {})}
+              >
+                {fmt(L.overview.compatMode, {})}
+              </span>
+            )}
+          </span>
+        }
       >
         <ReportDownload clusterId={cluster?.id ?? ''} clusterName={cluster?.name} />
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard" />
+        <DensityToggle
+          compactLabel={L.overview.compactOn}
+          comfortableLabel={L.overview.compactOff}
+        />
+        <AutoRefresh label={L.overview.autoRefresh} updatedTemplate={L.overview.autoUpdated} />
       </PageHeader>
 
       {!cluster && (
@@ -90,7 +119,7 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
 
       {cluster && !error && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+          <div className="stat-grid grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
             <StatCard
               label="Nodes"
               value={`${onlineNodes.length}/${nodes.length}`}
@@ -114,6 +143,53 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
             </StatCard>
           </div>
 
+          <p className="text-xs text-zinc-500">{L.overview.thresholdHint}</p>
+
+          <section className="card overflow-hidden">
+            <header className="border-b border-zinc-800 px-4 py-3">
+              <h2 className="text-sm font-semibold text-zinc-200">{L.overview.heatmap}</h2>
+              <p className="mt-0.5 text-xs text-zinc-500">{L.overview.heatmapHint}</p>
+            </header>
+            <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4">
+              {nodes.map((n) => {
+                const memPct = pct(n.memUsed, n.memMax);
+                const diskPct = pct(n.diskUsed, n.diskMax);
+                const load = Math.max(n.cpuPercent, memPct, diskPct);
+                const tone =
+                  load < 80
+                    ? 'border-emerald-700/40 bg-emerald-500/10'
+                    : load < 90
+                      ? 'border-amber-700/40 bg-amber-500/10'
+                      : 'border-red-700/40 bg-red-500/10';
+                return (
+                  <div key={n.node} className={`heat-tile rounded-lg border p-3 ${tone}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-zinc-200">{n.node}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{n.status}</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] text-zinc-400">
+                      <div>
+                        <div className="font-semibold text-zinc-300">{n.cpuPercent}%</div>
+                        <div>CPU</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-zinc-300">{Math.round(memPct)}%</div>
+                        <div>Mem</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-zinc-300">{Math.round(diskPct)}%</div>
+                        <div>Disk</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {nodes.length === 0 && (
+                <div className="col-span-full py-6 text-center text-sm text-zinc-500">{L.overview.noNodes}</div>
+              )}
+            </div>
+          </section>
+
           <section className="card overflow-hidden">
             <header className="border-b border-zinc-800 px-4 py-3">
               <h2 className="text-sm font-semibold text-zinc-200">{L.overview.secNodes}</h2>
@@ -135,6 +211,11 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
                     <tr key={n.node} className="hover:bg-zinc-900/40">
                       <Td>
                         <span className="font-medium text-zinc-200">{n.node}</span>
+                        {n.pveVersion && (
+                          <span className="ml-2 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">
+                            PVE {n.pveVersion}
+                          </span>
+                        )}
                       </Td>
                       <Td>
                         <StatusBadge status={n.status} />
@@ -174,32 +255,18 @@ export default async function OverviewPage({ searchParams }: { searchParams?: { 
                 {L.overview.viewAll}
               </Link>
             </header>
-            <ul className="divide-y divide-zinc-800/70">
-              {guests.slice(0, 8).map((g) => (
-                <li
-                  key={`${g.node}-${g.vmid}`}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150 hover:bg-zinc-900/40"
-                >
-                  <span className="w-12 shrink-0 font-mono text-xs text-zinc-500">{g.vmid}</span>
-                  <span className="min-w-0 flex-1 truncate text-zinc-200">
-                    {g.name}
-                    {g.template && (
-                      <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
-                        TEMPLATE
-                      </span>
-                    )}
-                  </span>
-                  <span className="hidden w-28 shrink-0 truncate text-xs text-zinc-500 sm:block">{g.node}</span>
-                  <StatusBadge status={g.template ? 'template' : g.status} />
-                  <span className="hidden w-20 shrink-0 text-right text-xs text-zinc-500 md:block">
-                    {fmtUptime(g.uptime)}
-                  </span>
-                </li>
-              ))}
-              {guests.length === 0 && (
-                <li className="px-4 py-6 text-center text-sm text-zinc-500">{L.overview.noGuests}</li>
-              )}
-            </ul>
+            <GuestList
+              guests={guests}
+              viewAllHref={`/dashboard/vms?c=${cluster.id}`}
+              labels={{
+                all: L.overview.filterAll,
+                running: L.overview.filterRunning,
+                stopped: L.overview.filterStopped,
+                search: L.overview.searchPlaceholder,
+                viewAll: L.overview.viewAll,
+                empty: L.overview.noGuests
+              }}
+            />
           </section>
 
           <TaskPanel clusterId={cluster.id} />

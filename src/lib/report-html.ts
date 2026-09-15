@@ -1,16 +1,10 @@
 import { fmtBytesShort, svgAreaChart } from './report-svg';
 import type { MonthlyData } from './report-data';
 import { fmtDowntime, type SlaRow } from './sla';
-import { getReportStrings } from './report-strings';
+import { getReportStrings, formatRange } from './report-strings';
 import type { PublicCluster } from '@/types';
 
 type ReportLocale = 'id' | 'en';
-
-const BULAN_EN = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
-const BULAN_ID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-function bulan(month: number, locale: ReportLocale): string {
-  return (locale === 'en' ? BULAN_EN : BULAN_ID)[month] ?? '';
-}
 
 function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -209,9 +203,14 @@ function slaSection(d: MonthlyData, locale: ReportLocale = 'id', withLetter = tr
   ${table(s.nodes)}
   <p style="margin:10px 0 4px"><b>${R.slaHtmlGuests}:</b></p>
   ${table(s.guests, true)}
-  <p style="font-size:11.5px;color:#94a3b8">${en
-    ? 'Computed from the last ~30 days of Proxmox monitoring data; sample gaps count as downtime.'
-    : 'Dihitung dari data monitoring Proxmox ±30 hari terakhir; gap sampel dianggap downtime.'}</p>`;
+  <p style="font-size:11.5px;color:#94a3b8">${R.slaRangeNote.replace(
+    '{range}',
+    formatRange(
+      d.rangeStart ?? Math.floor(Date.UTC(d.year, d.month - 1, 1) / 1000),
+      d.rangeEnd ?? Math.floor(Date.UTC(d.year, d.month, 1) / 1000),
+      locale
+    )
+  )}</p>`;
 }
 
 function detailSections(d: MonthlyData, withTitles = true, locale: ReportLocale = 'id', letters = false): string {
@@ -304,7 +303,14 @@ export function buildMonthlyReportHtml(d: MonthlyData, locale: ReportLocale = 'i
   const gagal = en ? 'failed' : 'gagal';
   const aksi = en ? 'actions recorded' : 'aksi tercatat';
   const perluDiperhatikan = en ? 'Items needing attention:' : 'Perlu diperhatikan:';
-  const grafikTren = en ? 'B. TREND CHARTS (last 30 days)' : 'B. Grafik Tren (30 hari terakhir)';
+  const grafikTren = R.trendRange.replace(
+    '{range}',
+    formatRange(
+      d.rangeStart ?? Math.floor(Date.UTC(d.year, d.month - 1, 1) / 1000),
+      d.rangeEnd ?? Math.floor(Date.UTC(d.year, d.month, 1) / 1000),
+      locale
+    )
+  );
   const rekomen = en ? 'H. RECOMMENDATIONS' : 'H. Rekomendasi Tindak Lanjut';
   const semuaNormal = en ? 'All indicators are within normal limits.' : 'Semua indikator normal.';
   const prosesBulan = en ? 'Processes this month' : 'Proses teknis bulan ini';
@@ -345,7 +351,11 @@ export function buildMonthlyReportHtml(d: MonthlyData, locale: ReportLocale = 'i
 
   return page(
     R.reportTitle,
-    `${R.cluster} <b>${esc(d.cluster.name)}</b> (${esc(d.cluster.host)}) &middot; ${R.period}: <b>${R.months[d.month]} ${d.year}</b>`,
+    `${R.cluster} <b>${esc(d.cluster.name)}</b> (${esc(d.cluster.host)}) &middot; ${R.period}: <b>${formatRange(
+      d.rangeStart ?? Math.floor(Date.UTC(d.year, d.month - 1, 1) / 1000),
+      d.rangeEnd ?? Math.floor(Date.UTC(d.year, d.month, 1) / 1000),
+      locale
+    )}</b>`,
     body,
     locale
   );
@@ -358,8 +368,8 @@ export interface ConsolidatedItem {
 }
 
 export function buildConsolidatedReportHtml(
-  year: number,
-  month: number,
+  startEpoch: number,
+  endEpoch: number,
   items: ConsolidatedItem[],
   locale: ReportLocale = 'id'
 ): string {
@@ -407,6 +417,7 @@ export function buildConsolidatedReportHtml(
   const clustersCovered = en ? 'Clusters covered' : 'Cluster tercakup';
   const panelActivity = en ? 'Panel activity' : 'Aktivitas administrasi panel';
 
+  const periodLabel = formatRange(startEpoch, endEpoch, locale);
   let body = `
   <h2>${R.secA}</h2>
   <p>${R.condition}: <span class="badge" style="background:${badgeColor}">${kondisi}</span></p>
@@ -425,7 +436,7 @@ export function buildConsolidatedReportHtml(
   </table>
   ${alasan.length ? `<p><b>${R.attention}</b></p><ul>${alasan.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
   ${errs.map((it) => `<div class="errbox"><b>${esc(it.cluster.name)}</b>: ${esc(it.error ?? '?')}</div>`).join('')}
-  <h2>${R.secB} (${R.period}: ${R.months[month]} ${year})</h2>`;
+  <h2>${R.secB} (${R.period}: ${periodLabel})</h2>`;
 
   oks.forEach((it, idx) => {
     const d = it.data!;
@@ -452,7 +463,7 @@ export function buildConsolidatedReportHtml(
 
   return page(
     R.reportTitle,
-    `${en ? 'All Clusters' : 'Seluruh Cluster'} (${items.length}) &middot; ${R.period}: ${bulan(month, locale)} ${year}`,
+    `${en ? 'All Clusters' : 'Seluruh Cluster'} (${items.length}) &middot; ${R.period}: ${periodLabel}`,
     body,
     locale
   );

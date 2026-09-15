@@ -39,6 +39,23 @@ function xFmtFor(tf: Timeframe): (ms: number) => string {
   return (ms: number) => new Date(ms).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
 }
 
+function customXFmt(start: string, end: string): (ms: number) => string {
+  const s = new Date(`${start}T00:00:00`).getTime();
+  const e = new Date(`${end}T23:59:59`).getTime();
+  const span = isFinite(s) && isFinite(e) ? e - s : 0;
+  if (span > 0 && span <= 2 * 86400000) {
+    return (ms: number) =>
+      new Date(ms).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+  }
+  return (ms: number) => new Date(ms).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
   const L = useL();
   const [targetType, setTargetType] = useState<TargetType>(init.targetType);
@@ -52,6 +69,13 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     return guests[0] ? guestKeyOf(guests[0]) : '';
   });
   const [tf, setTf] = useState<Timeframe>(init.tf);
+  const [customMode, setCustomMode] = useState(false);
+  const [customStart, setCustomStart] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customEnd, setCustomEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<Array<{ [k: string]: number | null }> | null>(null);
@@ -61,6 +85,9 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     const [t, vmid, node] = (guestSel || '').split('|');
     return guests.find((g) => g.type === t && String(g.vmid) === vmid && g.node === node);
   }, [guestSel, guests]);
+
+  const xFmt = customMode ? customXFmt(customStart, customEnd) : xFmtFor(tf);
+  const rangeText = customMode ? `${customStart} → ${customEnd}` : tf;
 
   const load = useCallback(async () => {
     let url = '';
@@ -76,9 +103,19 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       }
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(guest.node)}/${guest.type}/${guest.vmid}/rrddata`;
     }
+    let qs: string;
+    if (customMode) {
+      if (!customStart || !customEnd) return;
+      const s = Math.floor(new Date(`${customStart}T00:00:00`).getTime() / 1000);
+      const e = Math.floor(new Date(`${customEnd}T23:59:59`).getTime() / 1000);
+      if (!isFinite(s) || !isFinite(e) || s >= e) return;
+      qs = `start=${s}&end=${e}&cf=AVERAGE`;
+    } else {
+      qs = `timeframe=${tf}&cf=AVERAGE`;
+    }
     setLoading(true);
     try {
-      const r = await fetch(`${url}?timeframe=${tf}&cf=AVERAGE`);
+      const r = await fetch(`${url}?${qs}`);
       const j = await r.json().catch(() => null);
       if (!r.ok) {
         setErr(j?.error ?? `HTTP ${r.status}`);
@@ -97,7 +134,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clusterId, targetType, nodeSel, guest, tf, nodes]);
+  }, [clusterId, targetType, nodeSel, guest, tf, customMode, customStart, customEnd, nodes]);
 
   useEffect(() => {
     load();
@@ -135,7 +172,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       <div className="card p-4">
         <div className="mb-3"><h3 className="text-sm font-medium text-zinc-300">{title}</h3></div>
         {hasData ? (
-          <TrendChart data={rows ?? []} series={series} xTickFmt={(ms) => xFmtFor(tf)(ms)} yFmt={yFmt} tipFmt={tip} />
+          <TrendChart data={rows ?? []} series={series} xTickFmt={(ms) => xFmt(ms)} yFmt={yFmt} tipFmt={tip} />
         ) : (
           <p className="py-10 text-center text-xs text-zinc-600">{L.graphs.noChart}</p>
         )}
@@ -180,20 +217,51 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
         )}
         <div>
           <label className="label">{L.graphs.range}</label>
-          <div className="flex gap-1">
-            {TFS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTf(t)}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-medium capitalize transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
-                  tf === t ? 'bg-orange-500/15 text-orange-400' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-1">
+            {!customMode &&
+              TFS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTf(t)}
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium capitalize transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
+                    tf === t ? 'bg-orange-500/15 text-orange-400' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            <button
+              type="button"
+              onClick={() => setCustomMode((v) => !v)}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-orange-500/60 active:scale-95 ${
+                customMode ? 'bg-orange-500/15 text-orange-400' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+              }`}
+            >
+              {L.graphs.custom}
+            </button>
           </div>
+          {customMode && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <input
+                type="date"
+                className="input w-auto"
+                value={customStart}
+                max={customEnd || undefined}
+                onChange={(e) => setCustomStart(e.target.value)}
+                aria-label={L.graphs.from}
+              />
+              <span className="text-xs text-zinc-500">{L.graphs.to}</span>
+              <input
+                type="date"
+                className="input w-auto"
+                value={customEnd}
+                min={customStart || undefined}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                aria-label={L.graphs.to}
+              />
+            </div>
+          )}
         </div>
         <button type="button" onClick={load} disabled={loading} className="btn-ghost ml-auto">
           <RefreshIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> {L.common.refresh}
@@ -205,7 +273,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       )}
 
       <p className="text-xs text-zinc-600">
-        {L.graphs.showing} <span className="text-zinc-400">{targetLabel}</span> · {tf}
+        {L.graphs.showing} <span className="text-zinc-400">{targetLabel}</span> · {rangeText}
         {updated ? ` · ${fmt(L.graphs.updatedAt, { time: updated.toLocaleTimeString('id-ID', { hour12: false }) })}` : ''}
       </p>
 

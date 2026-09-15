@@ -95,7 +95,24 @@ export function getReportStrings(locale: ReportLocale) {
     slaNotAchieved: en ? 'not achieved' : 'tidak tercapai',
     slaNode: en ? 'Node SLA' : 'SLA Node',
     slaGuest: en ? 'Guest SLA' : 'SLA Guest',
-    slaTask: en ? 'Task SLA' : 'SLA Task'
+    slaTask: en ? 'Task SLA' : 'SLA Task',
+    trendRange: en ? 'B. TREND CHARTS ({range})' : 'B. GRAFIK TREN ({range})',
+    slaRangeNote: en
+      ? 'Computed from Proxmox monitoring data for {range}; sample gaps count as downtime.'
+      : 'Dihitung dari data monitoring Proxmox untuk {range}; gap sampel dianggap downtime.'
   };
+}
+
+/**
+ * Format rentang waktu laporan dari epoch (detik) menjadi label periode,
+ * mis. "01 Jan – 31 Jan 2026" (id) atau "Jan 01 – Jan 31, 2026" (en).
+ */
+export function formatRange(startEpoch: number, endEpoch: number, locale: ReportLocale): string {
+  const opts: Intl.DateTimeFormatOptions = { day: '2-digit', month: 'short', year: 'numeric' };
+  const fmt = (ep: number) =>
+    new Date(ep * 1000).toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID', opts);
+  const s = fmt(startEpoch);
+  const e = fmt(endEpoch);
+  return s === e ? s : `${s} – ${e}`;
 }
 

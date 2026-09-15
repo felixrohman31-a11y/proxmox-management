@@ -3,17 +3,31 @@
 import { useState } from 'react';
 import { useL, useLocale } from './lang-context';
 
+function todayISO(): string {
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off * 60000).toISOString().slice(0, 10);
+}
+
+function firstOfMonthISO(): string {
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60000);
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
 export default function ReportDownload({ clusterId, clusterName }: { clusterId: string; clusterName?: string }) {
   const L = useL();
   const locale = useLocale();
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [start, setStart] = useState<string>(firstOfMonthISO());
+  const [end, setEnd] = useState<string>(todayISO());
   const [scope, setScope] = useState<'aktif' | 'semua'>('aktif');
 
   function download(format: 'html' | 'txt') {
-    const [y, m] = month.split('-');
-    if (!y || !m) return;
+    if (!start || !end) return;
+    if (start > end) return;
     const cid = scope === 'semua' ? 'all' : clusterId;
-    window.location.href = `/api/reports/${cid}/monthly?year=${y}&month=${Number(m)}&format=${format}&locale=${locale}`;
+    window.location.href = `/api/reports/${cid}/monthly?start=${start}&end=${end}&format=${format}&locale=${locale}`;
   }
 
   return (
@@ -39,13 +53,25 @@ export default function ReportDownload({ clusterId, clusterName }: { clusterId: 
           </button>
         ))}
       </div>
-      <input
-        type="month"
-        className="input w-auto"
-        value={month}
-        onChange={(e) => setMonth(e.target.value)}
-        aria-label={L.report.ariaMonth}
-      />
+      <div className="flex items-center gap-1.5">
+        <input
+          type="date"
+          className="input w-auto"
+          value={start}
+          max={end || undefined}
+          onChange={(e) => setStart(e.target.value)}
+          aria-label={L.report.ariaStart}
+        />
+        <span className="text-xs text-zinc-500">{L.report.to}</span>
+        <input
+          type="date"
+          className="input w-auto"
+          value={end}
+          min={start || undefined}
+          onChange={(e) => setEnd(e.target.value)}
+          aria-label={L.report.ariaEnd}
+        />
+      </div>
       <button
         type="button"
         className="btn-primary"

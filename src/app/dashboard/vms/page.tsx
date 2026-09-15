@@ -7,10 +7,13 @@ import { fetchResources } from '@/lib/resources';
 import { resolveCluster } from '@/lib/cluster-select';
 import { getSessionFromCookies } from '@/lib/session';
 import Link from 'next/link';
+import { serverT } from '@/lib/locale-server';
+import { fmt } from '@/lib/i18n-dict';
 
 export const dynamic = 'force-dynamic';
 
 export default async function VmsPage({ searchParams }: { searchParams?: { c?: string | string[] } }) {
+  const L = serverT();
   const session = getSessionFromCookies();
   const { clusters, cluster } = resolveCluster(searchParams?.c);
 
@@ -29,8 +32,8 @@ export default async function VmsPage({ searchParams }: { searchParams?: { c?: s
   return (
     <>
       <PageHeader
-        title="Virtual Machines"
-        subtitle={cluster ? `${guests.length} guest pada "${cluster.name}"` : 'Kelola VM & container'}
+        title={L.vms.title}
+        subtitle={cluster ? fmt(L.vms.subOn, { n: guests.length, name: cluster.name }) : 'Kelola VM & container'}
       >
         <ClusterSelector clusters={clusters} currentId={cluster?.id ?? null} basePath="/dashboard/vms" />
       </PageHeader>

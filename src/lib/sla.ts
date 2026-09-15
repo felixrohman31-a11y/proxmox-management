@@ -3,6 +3,7 @@ import fsp from 'fs/promises';
 import path from 'path';
 import { ensureDataDir } from './secrets';
 import { getPveClient, PveError } from './pve';
+import { fetchResources } from './resources';
 import type { PublicCluster } from '@/types';
 
 /**
@@ -48,6 +49,8 @@ export interface ClusterSla {
   clusterId: string;
   year: number;
   month: number;
+  rangeStart?: number; // epoch detik (akhir jika tidak diisi = periode bulanan)
+  rangeEnd?: number;
   defaultTarget: number;
   customTargets: Record<string, number>;
   summary: SlaSummary;
@@ -306,12 +309,12 @@ function makeRow(
   };
 }
 
-export async function slaForCluster(
+export async function slaForRange(
   cluster: PublicCluster,
-  year: number,
-  month: number
+  startEpoch: number,
+  endEpoch: number
 ): Promise<ClusterSla> {
-  const cacheKey = `${cluster.id}:${year}-${month}`;
+  const cacheKey = `${cluster.id}:${startEpoch}-${endEpoch}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
 
@@ -319,17 +322,16 @@ export async function slaForCluster(
   if (!client) throw new PveError('Cluster tidak ditemukan.', 404);
 
   const cfg = readConfigSync();
-  const monthStart = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
-  const monthEnd = Math.floor(Date.UTC(year, month, 1) / 1000);
+  const monthStart = startEpoch;
+  const monthEnd = endEpoch;
   const nowSec = Math.floor(Date.now() / 1000);
 
-  const res = await client.get<ResourceRow[]>('/cluster/resources');
-  const nodesRaw = (res ?? []).filter((r) => r.type === 'node');
-  const guestsRaw = (res ?? []).filter(
-    (r) => (r.type === 'qemu' || r.type === 'lxc') && !r.template
-  );
+  // fetchResources sudah mengakomodasi PVE ≤4.x (mis. pve3 / Proxmox 4.4) lewat
+  // fallback /status, sehingga status node/guest tetap akurat untuk SLA.
+  const { nodes: nodesRaw, guests: guestsRawAll } = await fetchResources(cluster.id);
+  const guestsRaw = guestsRawAll.filter((g) => !g.template);
 
-  const query = { timeframe: 'month', cf: 'AVERAGE' } as const;
+  const query = { start: startEpoch, end: endEpoch, cf: 'AVERAGE' } as const;
 
   const toSamples = (
     arr: Array<Record<string, unknown>> | null | undefined
@@ -424,11 +426,14 @@ export async function slaForCluster(
     if (k.startsWith(`${cluster.id}|`)) customTargets[k.slice(cluster.id.length + 1)] = v;
   }
 
+  const d0 = new Date(startEpoch * 1000);
   const all = [...nodeRows, ...guestRows];
   const data: ClusterSla = {
     clusterId: cluster.id,
-    year,
-    month,
+    year: d0.getUTCFullYear(),
+    month: d0.getUTCMonth() + 1,
+    rangeStart: startEpoch,
+    rangeEnd: endEpoch,
     defaultTarget: cfg.defaultTarget,
     customTargets,
     summary: summarize(all),
@@ -438,6 +443,16 @@ export async function slaForCluster(
 
   cache.set(cacheKey, { at: Date.now(), data });
   return data;
+}
+
+export async function slaForCluster(
+  cluster: PublicCluster,
+  year: number,
+  month: number
+): Promise<ClusterSla> {
+  const start = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
+  const end = Math.floor(Date.UTC(year, month, 1) / 1000);
+  return slaForRange(cluster, start, end);
 }
 
 export function clearSlaCache(): void {

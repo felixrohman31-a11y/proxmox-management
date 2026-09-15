@@ -1,7 +1,8 @@
 import { getPveClient, PveError } from './pve';
 import { readAudit } from './audit';
-import { getReportStrings } from './report-strings';
-import { slaForCluster, fmtDowntime, type ClusterSla } from './sla';
+import { getReportStrings, formatRange } from './report-strings';
+import { fetchResources } from './resources';
+import { slaForRange, fmtDowntime, type ClusterSla } from './sla';
 type ReportStrings = ReturnType<typeof getReportStrings>;
 import type { PublicCluster } from '@/types';
 
@@ -54,8 +55,8 @@ function daysFromSec(sec: number | undefined, en: boolean): string {
 
 export async function buildMonthlyReport(
   cluster: PublicCluster,
-  year: number,
-  month: number,
+  startEpoch: number,
+  endEpoch: number,
   locale: 'id' | 'en' = 'id'
 ): Promise<{ filename: string; content: string }> {
   const R = getReportStrings(locale);
@@ -63,9 +64,32 @@ export async function buildMonthlyReport(
   const client = getPveClient(cluster.id);
   if (!client) throw new PveError('Cluster not found.', 404);
 
-  const res = ((await client.get<Res[]>('/cluster/resources').catch(() => [])) ?? []) as Res[];
-  const nodes = res.filter((r) => r.type === 'node');
-  const guests = res.filter((r) => r.type === 'qemu' || r.type === 'lxc');
+  // Pakai fetchResources agar status & metrik PVE ≤4.x (mis. pve3 / Proxmox 4.4)
+  // ikut diresolve lewat fallback /status — konsisten dengan tampilan dashboard.
+  const { nodes: resNodes, guests: resGuests } = await fetchResources(cluster.id);
+  const nodes: Res[] = resNodes.map((n) => ({
+    type: 'node',
+    node: n.node,
+    status: n.status,
+    cpu: n.cpuPercent / 100,
+    maxcpu: n.maxCpu,
+    mem: n.memUsed,
+    maxmem: n.memMax,
+    uptime: n.uptime
+  }));
+  const guests: Res[] = resGuests.map((g) => ({
+    type: g.type,
+    vmid: g.vmid,
+    node: g.node,
+    name: g.name,
+    status: g.status,
+    template: g.template,
+    cpu: g.cpuPercent / 100,
+    mem: g.memUsed,
+    maxmem: g.memMax,
+    uptime: g.uptime,
+    tags: (g.tags ?? []).join(';')
+  }));
 
   const nodeNames = Array.from(new Set(nodes.map((n) => n.node ?? ''))).filter(Boolean);
   const storageLists = await Promise.all(
@@ -86,8 +110,8 @@ export async function buildMonthlyReport(
   });
 
   const now = new Date();
-  const startEpoch = Date.UTC(year, month - 1, 1, -7) / 1000;
-  const endEpoch = Date.UTC(year, month, 1, -7) / 1000;
+  const startMs = startEpoch * 1000;
+  const endMs = endEpoch * 1000;
 
   const allTasks = ((await client
     .get<Array<{ starttime?: number; status?: string; type?: string }>>('/cluster/tasks')
@@ -95,11 +119,14 @@ export async function buildMonthlyReport(
   const monthTasks = allTasks.filter((t) => (t.starttime ?? 0) >= startEpoch && (t.starttime ?? 0) < endEpoch);
   const failedTasks = monthTasks.filter((t) => t.status && !String(t.status).toUpperCase().includes('OK'));
 
-  const auditMonth = (await readAudit(2000)).filter((a) => String(a.ts ?? '').startsWith(`${year}-${String(month).padStart(2, '0')}`));
+  const auditMonth = (await readAudit(2000)).filter((a) => {
+    const t = new Date(a.ts ?? '').getTime();
+    return isFinite(t) && t >= startMs && t < endMs;
+  });
 
   let sla: ClusterSla | null = null;
   try {
-    sla = await slaForCluster(cluster, year, month);
+    sla = await slaForRange(cluster, startEpoch, endEpoch);
   } catch {
     sla = null;
   }
@@ -140,7 +167,7 @@ export async function buildMonthlyReport(
   L.push(garis);
   L.push(R.reportTitle);
   L.push(`${R.cluster}: ${cluster.name} (${cluster.host})`);
-  L.push(`${R.period}: ${R.months[month]} ${year}`);
+  L.push(`${R.period}: ${formatRange(startEpoch, endEpoch, locale)}`);
   L.push(`${R.generated}: ${now.toLocaleDateString(locale === 'en' ? 'en-US' : 'id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} ${now.toLocaleTimeString('en-US', { hour12: false })} — ${R.by}`);
   L.push(garis);
   L.push('');
@@ -290,8 +317,11 @@ export async function buildMonthlyReport(
   L.push(garis);
 
   const slug = cluster.name.replace(/[^a-zA-Z0-9]+/g, '-');
+  const d1 = new Date(startEpoch * 1000);
+  const d2 = new Date(endEpoch * 1000);
+  const ds = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
   return {
-    filename: `${locale === 'en' ? 'Report' : 'Laporan'}-Virtualization-${slug}-${year}-${String(month).padStart(2, '0')}.txt`,
+    filename: `${locale === 'en' ? 'Report' : 'Laporan'}-Virtualization-${slug}-${ds(d1)}_${ds(d2)}.txt`,
     content: L.join('\r\n')
   };
 }

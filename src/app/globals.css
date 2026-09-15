@@ -85,3 +85,34 @@
     @apply animate-pulse rounded-md bg-zinc-800/60;
   }
 }
+
+/* Mode padat (compact) — diaktifkan lewat data-compact pada <html>. */
+[data-compact='true'] .card-hover {
+  padding: 0.5rem !important;
+}
+[data-compact='true'] section.card > header {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+[data-compact='true'] table th,
+[data-compact='true'] table td {
+  padding-top: 0.25rem !important;
+  padding-bottom: 0.25rem !important;
+}
+[data-compact='true'] ul.divide-y > li {
+  padding-top: 0.375rem !important;
+  padding-bottom: 0.375rem !important;
+}
+[data-compact='true'] .space-y-6 > * + * {
+  margin-top: 0.5rem !important;
+}
+[data-compact='true'] .stat-grid {
+  gap: 0.5rem !important;
+}
+[data-compact='true'] .heat-tile {
+  padding: 0.5rem !important;
+}
+[data-compact='true'] .text-2xl {
+  font-size: 1.125rem !important;
+  line-height: 1.4rem !important;
+}

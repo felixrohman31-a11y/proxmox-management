@@ -1,7 +1,8 @@
 import type { PublicCluster } from '@/types';
 import { getPveClient } from './pve';
 import { readAudit } from './audit';
-import { slaForCluster, type ClusterSla } from './sla';
+import { fetchResources } from './resources';
+import { slaForRange, type ClusterSla } from './sla';
 
 export interface OverallSla {
   nodePct: number;
@@ -17,6 +18,8 @@ export interface MonthlyData {
   cluster: PublicCluster;
   year: number;
   month: number;
+  rangeStart?: number; // epoch detik (periode kustom)
+  rangeEnd?: number;
   nodes: NodeSummary[];
   guests: GuestSummary[];
   storages: StorageSummary[];
@@ -27,6 +30,15 @@ export interface MonthlyData {
   nodeSeries: Record<string, ChartRow[]>;
   sla: ClusterSla | null;
   overallSla: OverallSla;
+}
+
+/**
+ * Konversi tanggal (yyyy-mm-dd, waktu lokal WIB/UTC+7) menjadi epoch detik.
+ * Offset -7 digunakan supaya batas hari cocok dengan zona waktu lokal panel,
+ * sejalan dengan logika periode bulanan yang sudah ada.
+ */
+export function ymdToEpochWIB(y: number, m: number, d: number): number {
+  return Math.floor(Date.UTC(y, m - 1, d, -7) / 1000);
 }
 
 export interface NodeSummary {
@@ -65,37 +77,36 @@ const GIB = 1024 ** 3;
 
 export async function gatherMonthlyData(
   cluster: PublicCluster,
-  year: number,
-  month: number
+  startEpoch: number,
+  endEpoch: number
 ): Promise<MonthlyData> {
   const client = getPveClient(cluster.id);
   if (!client) throw new Error('Cluster tidak ditemukan.');
 
-  const res = ((await client.get<Array<Record<string, unknown>>>('/cluster/resources').catch(() => [])) ??
-    []) as Array<Record<string, unknown>>;
   const num = (v: unknown): number => (typeof v === 'number' && isFinite(v) ? v : 0);
   const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-  const nodesRaw = res.filter((r) => r.type === 'node');
-  const guestsRaw = res.filter((r) => r.type === 'qemu' || r.type === 'lxc');
+  // Pakai fetchResources agar status & metrik PVE ≤4.x (mis. pve3) ikut diresolve
+  // lewat fallback /status — konsisten dengan tampilan dashboard.
+  const { nodes: resNodes, guests: resGuests } = await fetchResources(cluster.id);
 
-  const nodes: NodeSummary[] = nodesRaw.map((r) => ({
-    node: str(r.node),
-    status: str(r.status),
-    uptimeDays: num(r.uptime) >= 86400 ? `${Math.floor(num(r.uptime) / 86400)} hari` : '< 1 hari',
-    cpuPct: Math.round(num(r.cpu) * 100),
-    memPct: num(r.maxmem) ? Math.round((num(r.mem) / num(r.maxmem)) * 100) : 0,
-    memUsed: `${(num(r.mem) / GIB).toFixed(1)} GB`,
-    memTotal: `${(num(r.maxmem) / GIB).toFixed(1)} GB`
+  const nodes: NodeSummary[] = resNodes.map((r) => ({
+    node: r.node,
+    status: r.status,
+    uptimeDays: r.uptime >= 86400 ? `${Math.floor(r.uptime / 86400)} hari` : '< 1 hari',
+    cpuPct: r.cpuPercent,
+    memPct: r.memMax ? Math.round((r.memUsed / r.memMax) * 100) : 0,
+    memUsed: `${(r.memUsed / GIB).toFixed(1)} GB`,
+    memTotal: `${(r.memMax / GIB).toFixed(1)} GB`
   }));
 
-  const guests: GuestSummary[] = guestsRaw
+  const guests: GuestSummary[] = resGuests
     .map((r) => ({
-      status: r.template ? 'template' : str(r.status) === 'running' ? 'BERJALAN' : str(r.status).toUpperCase(),
-      name: str(r.name) || '-',
-      vmid: num(r.vmid),
-      node: str(r.node),
-      memPct: num(r.maxmem) ? `${Math.round((num(r.mem) / num(r.maxmem)) * 100)}%` : '-'
+      status: r.template ? 'template' : r.status === 'running' ? 'BERJALAN' : r.status.toUpperCase(),
+      name: r.name || '-',
+      vmid: r.vmid,
+      node: r.node,
+      memPct: r.memMax ? `${Math.round((r.memUsed / r.memMax) * 100)}%` : '-'
     }))
     .sort((a, b) => a.vmid - b.vmid);
 
@@ -130,8 +141,8 @@ export async function gatherMonthlyData(
   });
   storages.sort((a, b) => b.pct - a.pct);
 
-  const startEpoch = Date.UTC(year, month - 1, 1, -7) / 1000;
-  const endEpoch = Date.UTC(year, month, 1, -7) / 1000;
+  const startMs = startEpoch * 1000;
+  const endMs = endEpoch * 1000;
   const tasks = await client
     .get<Array<{ starttime?: number; status?: string; type?: string }>>('/cluster/tasks')
     .catch(() => []);
@@ -147,9 +158,10 @@ export async function gatherMonthlyData(
       status: str(t.status)
     }));
 
-  const auditMonth = (await readAudit(2000)).filter((a) =>
-    String(a.ts ?? '').startsWith(`${year}-${String(month).padStart(2, '0')}`)
-  );
+  const auditMonth = (await readAudit(2000)).filter((a) => {
+    const t = new Date(a.ts ?? '').getTime();
+    return isFinite(t) && t >= startMs && t < endMs;
+  });
   const perAction = new Map<string, number>();
   for (const a of auditMonth) perAction.set(a.action, (perAction.get(a.action) ?? 0) + 1);
   const auditTop = [...perAction.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
@@ -159,7 +171,8 @@ export async function gatherMonthlyData(
     nodeNames.map(async (n) => {
       const raw = await client
         .get<Array<Record<string, unknown>>>(`/nodes/${encodeURIComponent(n)}/rrddata`, {
-          timeframe: 'month',
+          start: startEpoch,
+          end: endEpoch,
           cf: 'AVERAGE'
         })
         .catch(() => []);
@@ -174,9 +187,10 @@ export async function gatherMonthlyData(
     })
   );
 
+  const d0 = new Date(startEpoch * 1000);
   let sla: ClusterSla | null = null;
   try {
-    sla = await slaForCluster(cluster, year, month);
+    sla = await slaForRange(cluster, startEpoch, endEpoch);
   } catch {
     sla = null;
   }
@@ -204,8 +218,10 @@ export async function gatherMonthlyData(
 
   return {
     cluster,
-    year,
-    month,
+    year: d0.getUTCFullYear(),
+    month: d0.getUTCMonth() + 1,
+    rangeStart: startEpoch,
+    rangeEnd: endEpoch,
     nodes,
     guests,
     storages,

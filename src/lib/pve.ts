@@ -29,9 +29,14 @@ interface HttpResult {
   data: unknown;
 }
 
+const DEFAULT_PVE_TIMEOUT_MS = 30000;
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
 function httpRequest(host: string, port: number, opts: RequestOptions): Promise<HttpResult> {
   return new Promise((resolve, reject) => {
-    const headers: Record<string, string> = { Accept: "application/json", ...(opts.headers ?? {}) };
+    const headers: Record<string, string> = { Accept: 'application/json', ...(opts.headers ?? {}) };
     let body: string | Buffer | undefined;
     if (opts.form) {
       body = new URLSearchParams(opts.form).toString();
@@ -54,7 +59,7 @@ function httpRequest(host: string, port: number, opts: RequestOptions): Promise<
         method: opts.method,
         headers,
         agent,
-        timeout: opts.timeoutMs ?? 15000
+        timeout: opts.timeoutMs ?? DEFAULT_PVE_TIMEOUT_MS
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -192,29 +197,43 @@ export class PveClient {
       headers = PveClient.buildHeaders(t, mutating);
     }
 
-    let res: HttpResult;
-    try {
-      res = await httpRequest(this.conn.host, this.conn.port, {
+    const makeRequest = async (requestHeaders: Record<string, string>): Promise<HttpResult> =>
+      httpRequest(this.conn.host, this.conn.port, {
         method,
         path: fullPath,
-        headers,
+        headers: requestHeaders,
         json: options.body,
         insecure: this.conn.insecure
       });
+
+    let res: HttpResult;
+    try {
+      res = await makeRequest(headers);
     } catch (e) {
-      throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
+      if (method === 'GET' && options.retry !== false) {
+        await delay(300);
+        try {
+          res = await makeRequest(headers);
+        } catch (retryError) {
+          throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(retryError as Error).message}`, 504);
+        }
+      } else {
+        throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
+      }
     }
 
     if (!usingToken && res.status === 401 && options.retry !== false) {
       const t2 = await this.ticket(true);
+      const refreshedHeaders = PveClient.buildHeaders(t2, mutating);
       try {
-        res = await httpRequest(this.conn.host, this.conn.port, {
-          method,
-          path: fullPath,
-          headers: PveClient.buildHeaders(t2, mutating),
-          json: options.body,
-          insecure: this.conn.insecure
-        });
+        res = await makeRequest(refreshedHeaders);
+      } catch (e) {
+        throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
+      }
+    } else if (method === 'GET' && options.retry !== false && RETRYABLE_STATUS.has(res.status)) {
+      await delay(300);
+      try {
+        res = await makeRequest(headers);
       } catch (e) {
         throw new PveError(`Koneksi ke ${this.conn.host}:${this.conn.port} gagal — ${(e as Error).message}`, 504);
       }

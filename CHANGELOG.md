@@ -15,6 +15,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Retry-After`; nonaktif via `RATE_LIMIT_ENABLED=false`), dan mojibake em-dash
   (`â€”`) di `src/lib/pve.ts` dibersihkan menjadi `—`.
 
+## [1.4.1] - 2026-09-15
+
+### Added
+- **Tabel Virtual Machines**: kolom bisa diurutkan, ringkasan status bisa diklik (chip),
+  filter berbasis chip (tipe/status/node), paginasi, ekspansi baris untuk detail,
+  sembunyikan/tampilkan kolom, dan **lebar kolom bisa diatur (drag-to-resize)** dengan
+  penyimpanan ke `localStorage` + tombol "Reset lebar kolom".
+- **Ringkasan dashboard**: auto-refresh, toggle densitas (compact), legenda ambang batas
+  (hijau <80% · kuning 80–90% · merah ≥90%), heatmap beban node, dan filter/pencarian guest.
+- **Ekspor laporan & grafik kini berbasis rentang tanggal** (mulai–selesai) menggantikan
+  pemilih bulan; SLA, grafik tren, log audit, dan task dihitung sesuai rentang yang dipilih.
+- **Grafik RRD**: tombol "Custom" di samping hour/day/week/month/year untuk memilih rentang
+  tanggal bebas (start/end).
+- Warna ambang Meter (`StatCard`) disesuaikan: hijau <80%, kuning 80–90%, merah ≥90%.
+
+### Fixed
+- **Status node/guest & metrik untuk Proxmox lama (≤4.x, mis. pve3/PVE 4.4)** kini
+  diselesaikan lewat fallback `fetchResources` (`/status` per node & `/status/current` per
+  guest), sehingga ekspor/laporan/SLA tidak lagi menampilkan semua entri sebagai *offline*
+  (konsisten dengan tampilan dashboard).
+- Beberapa bug bahasa diperbaiki (subtitle panel VM, label menu "Kolom") agar mengikuti
+  locale (ID/EN).
+
 ## [1.2.1] - 2026-08-31
 
 ### Added

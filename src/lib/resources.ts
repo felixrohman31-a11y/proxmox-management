@@ -42,13 +42,21 @@ interface GuestStatusResp {
 
 const hasStatus = (r: PveResource): boolean => r.status !== undefined && r.status !== null;
 
-export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRow[]; guests: GuestRow[] }> {
+export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRow[]; guests: GuestRow[]; pveVersion?: string }> {
   const client = getPveClient(clusterId);
   if (!client) throw new PveError('Cluster tidak ditemukan.', 404);
   const res = (await client.get<PveResource[]>('/cluster/resources')) ?? [];
 
   const nodeRaw = res.filter((r) => r.type === 'node');
   const guestRaw = res.filter((r) => r.type === 'qemu' || r.type === 'lxc');
+
+  let pveVersion: string | undefined;
+  try {
+    const ver = await client.get<{ version?: string }>('/version');
+    pveVersion = ver.version;
+  } catch {
+    pveVersion = undefined;
+  }
 
   const nodes: NodeRow[] = await Promise.all(
     nodeRaw.map(async (r): Promise<NodeRow> => {
@@ -62,7 +70,8 @@ export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRo
           memMax: r.maxmem ?? 0,
           diskUsed: r.disk ?? 0,
           diskMax: r.maxdisk ?? 0,
-          uptime: r.uptime ?? 0
+          uptime: r.uptime ?? 0,
+          pveVersion
         };
       }
       // PVE ≤4.x: /cluster/resources tak kirim status/metrik → ambil dari /status.
@@ -77,7 +86,8 @@ export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRo
           memMax: s.memory?.total ?? 0,
           diskUsed: s.rootfs?.used ?? 0,
           diskMax: s.rootfs?.total ?? 0,
-          uptime: s.uptime ?? 0
+          uptime: s.uptime ?? 0,
+          pveVersion
         };
       } catch {
         return {
@@ -89,7 +99,8 @@ export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRo
           memMax: 0,
           diskUsed: 0,
           diskMax: 0,
-          uptime: 0
+          uptime: 0,
+          pveVersion
         };
       }
     })
@@ -162,5 +173,5 @@ export async function fetchResources(clusterId: string): Promise<{ nodes: NodeRo
     )
   ).sort((a, b) => a.vmid - b.vmid);
 
-  return { nodes, guests };
+  return { nodes, guests, pveVersion };
 }
