@@ -2,7 +2,7 @@
 
 [English](#english) | [Bahasa Indonesia](#bahasa-indonesia)
 
-![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![i18n](https://img.shields.io/badge/i18n-ID_&_EN-blue) ![license](https://img.shields.io/badge/license-MIT-green)
+![stack](https://img.shields.io/badge/Next.js-14-black) ![tailwind](https://img.shields.io/badge/Tailwind-3.4-38bdf8) ![i18n](https://img.shields.io/badge/i18n-ID_&_EN-blue) ![release](https://img.shields.io/github/v/release/felixrohman31-a11y/proxmox-management?color=brightgreen&label=release) ![license](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -23,7 +23,7 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
 - **Create Guest** — CT from LXC template, VM via ISO (upload ≤512 MB, download from URL server-side), or clone template + cloud-init
 - **VM/CT Backup** — vzdump (snapshot/suspend/stop mode, zstd/lzo/gzip), manage dump files
 - **Monitoring Graphs** — RRD history: CPU/Memory/Network/Disk IO per node & guest (hour–year)
-- **SLA Monitoring** — per-node & per-guest availability targets with compliance summary and breach detection (see [SLA Monitoring](#sla-monitoring))
+- **SLA Monitoring** — per-node & per-guest availability targets with compliance summary, **downtime episodes** (exactly *when* outages happened), **maintenance-window exclusion**, **breach alerts**, **monthly historical trend**, and a **cross-cluster fleet view** (see [SLA Monitoring](#sla-monitoring))
 
 #### Reporting
 - **Monthly Report** — per cluster or consolidated across all clusters
@@ -33,7 +33,7 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
 #### Administration
 - **User Management & RBAC** — 3 roles: **Super Admin** (manage all users/roles), **Administrator** (manage auditors only), **Auditor** (read-only, own password only); scrypt-hashed passwords, last-super-admin lockout guard
 - **Audit Log** — logins, user/role changes, cluster CRUD, all PVE mutations recorded automatically
-- **Notifications** — WhatsApp/Telegram alerts when a guest goes down (Fonnte / CallMeBot / Telegram Bot)
+- **Notifications** — WhatsApp/Telegram alerts when a guest goes down **and on new SLA breaches** (Fonnte / CallMeBot / Telegram Bot)
 - **FTP Config Backup** — panel configuration bundle with connection test & auto-daily option
 
 ### Security
@@ -48,24 +48,37 @@ A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind
 ```
 Browser ──> Next.js (UI + API Routes) ──HTTPS──> Proxmox VE API (port 8006)
                  │
-                 ├─ data/clusters.json   (encrypted credentials, AES-256-GCM)
-                 ├─ data/users.json      (panel users, scrypt-hashed, 3-tier RBAC)
-                 ├─ data/.secret         (encryption key, auto-generated)
-                 └─ data/audit.log       (JSONL audit trail)
+                 ├─ data/clusters.json    (encrypted credentials, AES-256-GCM)
+                 ├─ data/users.json       (panel users, scrypt-hashed, 3-tier RBAC)
+                 ├─ data/settings.json    (FTP backup + notification/SLA-alert config)
+                 ├─ data/sla.json         (availability targets per entity)
+                 ├─ data/maintenance.json (planned-downtime windows, excluded from SLA)
+                 ├─ data/sla-history.json (monthly SLA snapshots for trend view)
+                 ├─ data/cache/           (disk cache of SLA results for closed periods)
+                 ├─ data/.secret          (encryption key, auto-generated)
+                 └─ data/audit.log        (JSONL audit trail)
 ```
 
 ### SLA Monitoring
 
 Availability is tracked per node and per guest against a configurable target (default **99.9%**, customisable 50–100% per entity in `data/sla.json`).
 
-- **Data source** — Proxmox RRD (`rrddata`, `timeframe=month`, `cf=AVERAGE`), one series per node and per VM/CT.
+**How it's computed**
+- **Data source** — Proxmox RRD (`rrddata`, `cf=AVERAGE`), one series per node and per VM/CT. Explicit `start`/`end` ranges are used where supported; on older Proxmox (≤4.x) that rejects them with HTTP 400, the panel automatically falls back to the nearest `timeframe` (the capability is cached per cluster).
 - **"Up" definition** — an RRD sample counts as *up* when it carries a numeric `cpu` or `memused` metric. A sample with no metric means the entity was not alive at that instant and counts toward downtime.
 - **Sampling interval** — the median gap between consecutive RRD rows (≈5 minutes, 300 s fallback).
-- **Window** — from `max(month start, first active sample)` to `now` for entities currently online/running, or to `last active sample + one interval` for stopped entities (an outage after that point is treated as an intentional shutdown, not a breach).
-- **Availability** — the window is swept one interval at a time: `availability = up slots / total slots × 100` (3 decimals), where a slot is *up* if an active sample falls within ±half-interval. Downtime = `(total − up) × interval`.
-- **Result** — each entity is `ok` (actual ≥ target), `breach` (actual < target), or `no-data` (no RRD samples). The summary rolls up compliant/breach/no-data counts, average availability, and total downtime.
+- **Window** — from `max(period start, first active sample)` to `now` for entities currently online/running, or to `last active sample + one interval` for stopped entities (an outage after that point is treated as an intentional shutdown, not a breach).
+- **Availability** — the window is swept one interval at a time: `availability = up slots / total slots × 100`, where a slot is *up* if an active sample falls within ±half-interval. Downtime = `(total − up) × interval`.
+- **Maintenance exclusion** — time inside a configured maintenance window is neither counted as up nor down (and does not alert), so planned downtime never penalises the SLA.
 
-> **Note:** RRD `timeframe=month` retains only ~30 days — months older than that report as `no-data`.
+**What you get**
+- **Result per entity** — `ok` (actual ≥ target), `breach` (actual < target), or `no-data`, with the remaining downtime budget and an at-risk flag for the current period.
+- **Downtime episodes** — the exact *when* (start → end in WIB, duration, an "ongoing" marker), each deep-linking to the RRD graph over that interval.
+- **Breach alerts** — a transition into breach is pushed once per entity per period over WhatsApp/Telegram (spam-safe state survives restarts), checked every 30 minutes.
+- **Historical trend** — monthly aggregate snapshots are persisted to `data/sla-history.json` and charted as an availability curve with month-over-month deltas.
+- **Fleet view** — `/dashboard/sla/fleet` rolls every cluster up into a weighted-average availability, a per-cluster table, and the top breaches across the whole estate.
+
+> **Notes:** raw RRD always lives on Proxmox — the panel fetches it live and persists only *derived* SLA results (snapshots + a disk cache for closed periods). `timeframe=month` retains ~30 days, so the automatic monthly snapshot is what lets you keep trends beyond that window.
 
 ---
 
@@ -201,16 +214,17 @@ pveum user token add proxmox-management@pve panel -privsep 0
 
 ```
 src/
-├── app/api/         # auth, clusters, PVE proxy, meta, reports, settings, upload, audit
-├── app/dashboard/   # overview, vms, create, backup, graphs, clusters, settings, console
-├── components/      # tables, forms, charts, panels
-├── lib/             # pve client, i18n, session, encrypted store, reports
+├── app/api/         # auth, clusters, PVE proxy, meta, reports, settings, sla, maintenance, upload, audit
+├── app/dashboard/   # overview, vms, create, backup, graphs, sla (+ sla/fleet), clusters, settings, console
+├── components/      # tables, forms, charts, panels (SLA trend, maintenance, alert)
+├── lib/             # pve client, i18n, session, encrypted store, reports, sla (engine, history, alerts, fleet), maintenance, concurrency, disk-cache
 └── types.ts
 ```
 
 ## Roadmap
 
 - [x] Multi-user panel + RBAC (3-tier: Super Admin / Administrator / Auditor)
+- [x] SLA suite: downtime episodes, maintenance exclusion, breach alerts, monthly trend, cross-cluster fleet view
 - [ ] Restore VM/CT directly from dump files
 - [ ] Per-guest custom monitoring windows
 
@@ -232,7 +246,7 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
 - Buat Guest: CT dari template, VM via ISO (unggah lokal / unduh URL / clone)
 - Backup VM/CT via vzdump + kelola file dump
 - Grafik Monitoring RRD per node & guest
-- **SLA Monitoring** — target ketersediaan per node & guest, deteksi breach, ringkasan kepatuhan
+- **SLA Monitoring** — target ketersediaan per node & guest, ringkasan kepatuhan, **episode downtime** (kapan persisnya terjadi), **pengecualian jendela maintenance**, **alert pelanggaran**, **tren historis bulanan**, dan **ringkasan lintas-cluster (fleet)**
 
 **Pelaporan**
 - Laporan Bulanan per cluster atau gabungan seluruh cluster
@@ -242,12 +256,14 @@ Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js
 **Administrasi**
 - **Manajemen User & RBAC** — 3 peran: **Super Admin** (kelola semua user/peran), **Administrator** (kelola auditor saja), **Auditor** (read-only, ganti password sendiri); password di-hash scrypt, guard super-admin-terakhir
 - Audit Log otomatis (login, perubahan user/peran, mutasi cluster/VM)
-- Notifikasi WhatsApp/Telegram saat guest mati
+- Notifikasi WhatsApp/Telegram saat guest mati **dan saat entitas baru melanggar SLA**
 - Backup konfigurasi panel ke FTP
 
 **Keamanan**: rate-limit login, password scrypt, cookie Secure/HMAC-SHA256, enkripsi AES-256-GCM, HSTS, proteksi lockout super admin
 
-**Penghitungan SLA**: ketersediaan dihitung dari rrddata Proxmox (timeframe=month, cf=AVERAGE). Sampel ber-metrik `cpu`/`memused` = hidup, tanpa metrik = downtime. Interval = median selisih antar baris RRD (±5 menit). Ketersediaan = slot hidup / total slot × 100 (target default 99,9%, dapat diatur per entitas 50–100%). Status: `ok` / `breach` / `no-data`.
+**Penghitungan SLA**: ketersediaan dihitung dari rrddata Proxmox (`cf=AVERAGE`). Sampel ber-metrik `cpu`/`memused` = hidup, tanpa metrik = downtime. Interval = median selisih antar baris RRD (±5 menit). Ketersediaan = slot hidup / total slot × 100 (target default 99,9%, dapat diatur per entitas 50–100%). Status: `ok` / `breach` / `no-data`, lengkap dengan sisa anggaran downtime dan penanda berisiko. Pada **PVE ≤4.x** yang menolak parameter `start`/`end` (HTTP 400), panel otomatis memakai *fallback* `timeframe` terdekat (kapabilitas di-*cache* per cluster).
+
+**Fitur SLA (v1.4.2)**: *episode downtime* (mulai→selesai WIB + tautan ke grafik pada rentang itu), *jendela maintenance* (downtime terjadwal dikecualikan & tidak di-alert), *alert pelanggaran* via WhatsApp/Telegram (sekali per entitas per periode, state tahan-restart, cek tiap 30 menit), *tren historis* (snapshot agregat per bulan ke `data/sla-history.json` + kurva & delta MoM), dan *ringkasan lintas-cluster* di `/dashboard/sla/fleet`. Data grafik mentah tetap berada di Proxmox (diambil live); panel hanya menyimpan hasil turunan SLA. Retensi `timeframe=month` ≈ 30 hari, sehingga snapshot bulanan otomatis yang menjaga tren tetap terbaca lebih dari itu.
 
 ### Deploy
 
