@@ -221,12 +221,48 @@ src/
 └── types.ts
 ```
 
-## Roadmap
+## Roadmap & Planning (v1.x → v2.x)
 
-- [x] Multi-user panel + RBAC (3-tier: Super Admin / Administrator / Auditor)
-- [x] SLA suite: downtime episodes, maintenance exclusion, breach alerts, monthly trend, cross-cluster fleet view
+**Shipped (1.0 → 1.4.x):** 3-tier RBAC & session control; **SLA suite** (targets, downtime episodes, maintenance exclusion, breach alerts, monthly trend, cross-cluster fleet view); date-range reports; rrddata hardening (timeframe fallback for PVE ≤4.x, concurrency limit, disk cache); user self-password & anti-lockout.
+
+### Upcoming — v1.x (incremental, backward-compatible)
 - [ ] Restore VM/CT directly from dump files
 - [ ] Per-guest custom monitoring windows
+- [ ] Storage/pool health widgets (usage & monitor state) on Overview
+- [ ] vzdump backup **job schedules** view with next-run
+
+### v2.0 — major release theme: 🤖 AI Troubleshooting Assistant
+The flagship of 2.x: an in-panel AI chat that helps diagnose Proxmox issues and, safely, act on them.
+
+**Connection modes (bring-your-own backend)**
+- **API key** — cloud: OpenAI / Anthropic / Google / Groq / OpenRouter
+- **OpenAI-compatible / self-hosted** — base URL + key
+- **Local models** — Ollama (no key, air-gap friendly)
+- **OAuth bearer** — Azure OpenAI (Entra) / Google Vertex (ADC). *Consumer ChatGPT/Claude **subscription login is out of scope** (ToS).*
+
+**Capability — human-in-the-loop (safe by default)**
+- **Read-only diagnosis** first: the agent calls *whitelisted* GET tools (cluster/resources, node & guest status, `rrddata`, tasks/UPID, storage, SLA episodes, audit log) and explains findings in plain language.
+- **Actions are proposed, never auto-run.** A confirmation card shows the exact endpoint + impact; executing requires your click, a `canWrite` re-check, and a short-lived signed nonce — then it is audited.
+
+**Guardrails**
+- API keys stored **encrypted** in `data/` (like PVE credentials), never sent to the browser.
+- Optional **redaction** of hostnames/IPs/volid before any cloud call (default **on** for cloud, **off** for local).
+- **Prompt-injection defence** — untrusted log/PVE text can only reach read-only tools; every mutation is human-confirmed.
+- **Role-gated** (`superadmin`/`admin`), rate-limited, with conversations & actions written to the **audit log**.
+- **Floating assistant dock** with an “attach current context” button (cluster/node/guest + date range + SLA) from the Graphs / SLA / VM pages.
+
+**Build phases**
+- **P1 —** MVP: `data/ai.json` config + OpenAI-compatible/Ollama adapters + read-only PVE tools + streaming chat dock.
+- **P2 —** full provider matrix (OpenAI/Anthropic/Google/OpenRouter, Azure/Vertex OAuth) + context-attach + multi-turn history.
+- **P3 —** human-in-loop actions (propose → confirm → execute → audit).
+
+> **Status: planning only — not implemented.** Scope and shape may change. Tracked here as the intent for v2.x.
+
+### Other 2.x candidates
+- Multi-tenancy / per-cluster user scoping
+- More notification channels (email, webhooks, Prometheus/Alertmanager)
+- Public read-only REST API tokens & a plugin/module surface
+
 
 ---
 
