@@ -3,6 +3,8 @@ import FtpBackupPanel from '@/components/FtpBackupPanel';
 import AccountPanel from '@/components/AccountPanel';
 import { serverT } from '@/lib/locale-server';
 import WaPanel from '@/components/WaPanel';
+import MaintenancePanel from '@/components/MaintenancePanel';
+import SlaAlertPanel from '@/components/SlaAlertPanel';
 import AuditTable from '@/components/AuditTable';
 import LangToggle from '@/components/LangToggle';
 import { listClustersSync } from '@/lib/store';
@@ -31,6 +33,8 @@ export default function SettingsPage() {
           <>
             <FtpBackupPanel clusters={clusters} />
             <WaPanel />
+            <SlaAlertPanel />
+            <MaintenancePanel clusters={clusters} />
           </>
         )}
         <AuditTable />

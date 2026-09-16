@@ -4,6 +4,9 @@ import path from 'path';
 import { ensureDataDir } from './secrets';
 import { getPveClient, PveError } from './pve';
 import { fetchResources } from './resources';
+import { listMaintenanceSync, resolveIntervals, type Interval, type MaintenanceWindow } from './maintenance';
+import { mapLimit } from './concurrency';
+import { cacheGet, cacheSet, cacheClear } from './disk-cache';
 import type { PublicCluster } from '@/types';
 
 /**
@@ -21,6 +24,11 @@ import type { PublicCluster } from '@/types';
  *   jadi bulan-bulan lampau yang di luar jangkauan akan berstatus "no-data".
  */
 
+export interface SlaEpisode {
+  start: number; // epoch detik (awal jendela down)
+  end: number; // epoch detik (akhir jendela down)
+}
+
 export interface SlaRow {
   key: string; // "qemu/100@pve1" | "lxc/105@pve2" | "node/pve1"
   kind: 'guest' | 'node';
@@ -33,6 +41,11 @@ export interface SlaRow {
   actualPct: number | null;
   downtimeMin: number | null;
   windowHours: number | null;
+  coveragePct: number | null; // % jendela waktu yang punya sampel (akurasi data)
+  budgetRemainingMin: number | null; // untuk periode berjalan: sisa menit downtime sebelum target meleset (null bila negatif→lihat atRisk)
+  atRisk: boolean; // periode berjalan & downtime sudah melewati anggaran full-period
+  episodes: SlaEpisode[]; // jendela downtime terukur (waktu WIB ditentukan di UI)
+  maintenanceMin: number | null; // menit downtime di dalam jendela maintenance (dikecualikan dari SLA)
   status: 'ok' | 'breach' | 'no-data';
 }
 
@@ -41,8 +54,10 @@ export interface SlaSummary {
   noData: number;
   compliant: number;
   breach: number;
+  atRisk: number;
   avgPct: number | null;
   totalDowntimeMin: number;
+  maintenanceMin: number; // total menit dikecualikan karena maintenance
 }
 
 export interface ClusterSla {
@@ -123,6 +138,7 @@ export async function setSlaDefaultTarget(target: number): Promise<SlaConfig> {
   const cfg = readConfigSync();
   cfg.defaultTarget = t;
   await writeConfig(cfg);
+  clearSlaCache(); // target default berubah → status ok/breach bisa berubah
   return cfg;
 }
 
@@ -142,6 +158,7 @@ export async function setSlaTarget(
     cfg.targets[fullKey] = t;
   }
   await writeConfig(cfg);
+  clearSlaCache(); // target per entitas berubah → invalidate cache
   return cfg;
 }
 
@@ -160,6 +177,16 @@ export interface AvailabilityResult {
   actualPct: number;
   downtimeSec: number;
   windowSec: number;
+  coveragePct: number;
+  maintenanceSec: number;
+  episodes: SlaEpisode[];
+}
+
+function inInterval(t: number, ivs: Interval[]): boolean {
+  for (const iv of ivs) {
+    if (t >= iv.start && t < iv.end) return true;
+  }
+  return false;
 }
 
 /**
@@ -177,7 +204,8 @@ export function computeAvailability(
   monthStart: number,
   monthEnd: number,
   nowSec: number,
-  activeNow: boolean
+  activeNow: boolean,
+  excludes: Interval[] = []
 ): AvailabilityResult | null {
   const rows = (samples ?? [])
     .map((r) => ({ t: Number(r?.t), active: Boolean(r?.active) }))
@@ -204,20 +232,52 @@ export function computeAvailability(
   if (we <= ws) return null;
 
   const MAX_SLOTS = 20000;
+  const MAX_EPISODES = 250;
+  let scanned = 0;
   let total = 0;
   let up = 0;
+  let covered = 0;
+  let maintSlots = 0;
   let idx = 0;
-  for (let t = ws; t < we && total < MAX_SLOTS; t += dt) {
+  const episodes: SlaEpisode[] = [];
+  let openEp: SlaEpisode | null = null;
+  for (let t = ws; t < we && scanned < MAX_SLOTS; t += dt) {
+    scanned++;
+    // Slot dalam jendela pemeliharaan: tidak dihitung sama sekali (bukan up,
+    // bukan down, bukan denominator) dan memutus episode yang sedang terbuka.
+    if (inInterval(t, excludes)) {
+      if (openEp) {
+        if (episodes.length < MAX_EPISODES) episodes.push(openEp);
+        openEp = null;
+      }
+      maintSlots++;
+      continue;
+    }
     total++;
     while (idx < rows.length && rows[idx].t < t - dt / 2) idx++;
     let hit = false;
+    let exists = false;
     for (let j = idx; j < rows.length && rows[j].t <= t + dt / 2; j++) {
+      exists = true;
       if (rows[j].active) {
         hit = true;
         break;
       }
     }
+    if (exists) covered++;
     if (hit) up++;
+    // Lacak run "down" menjadi satu episode berdurasi.
+    if (!hit) {
+      if (!openEp) openEp = { start: t, end: t + dt };
+      else openEp.end = t + dt;
+    } else if (openEp) {
+      if (episodes.length < MAX_EPISODES) episodes.push(openEp);
+      openEp = null;
+    }
+  }
+  if (openEp) {
+    openEp.end = we; // masih down hingga akhir window terukur
+    if (episodes.length < MAX_EPISODES) episodes.push(openEp);
   }
   if (!total) return null;
 
@@ -225,7 +285,10 @@ export function computeAvailability(
   return {
     actualPct: Math.round(actualPct * 1000) / 1000,
     downtimeSec: (total - up) * dt,
-    windowSec: total * dt
+    windowSec: total * dt,
+    coveragePct: Math.round((covered / total) * 1000) / 10,
+    maintenanceSec: maintSlots * dt,
+    episodes
   };
 }
 
@@ -236,8 +299,10 @@ function summarize(rows: SlaRow[]): SlaSummary {
     noData: rows.length - withData.length,
     compliant: withData.filter((r) => r.status === 'ok').length,
     breach: withData.filter((r) => r.status === 'breach').length,
+    atRisk: withData.filter((r) => r.atRisk).length,
     avgPct: null,
-    totalDowntimeMin: 0
+    totalDowntimeMin: 0,
+    maintenanceMin: Math.round(rows.reduce((s, r) => s + (r.maintenanceMin ?? 0), 0))
   };
   if (withData.length) {
     const sum = withData.reduce((s, r) => s + (r.actualPct ?? 0), 0);
@@ -272,22 +337,90 @@ interface CacheEntry {
   data: ClusterSla;
 }
 
+// L1 (memori) cepat untuk periode berjalan; L2 (disk) tahan-restart untuk
+// periode historis yang datanya tak berubah lagi.
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 120_000;
+const CACHE_TTL_MS = 120_000; // periode berjalan: 2 menit
+const CLOSED_TTL_MS = 12 * 3600_000; // periode tertutup: 12 jam (juga di disk)
+const RRD_CONCURRENCY = 5; // batas /rrddata paralel per cluster
+
+// Kapabilitas rrddata per cluster: beberapa server PVE lama (mis. 4.x) menolak
+// parameter `start`/`end` pada /rrddata (hanya menerima `timeframe`). Kami coba
+// range eksplisit lebih dulu, lalu fallback ke timeframe dan cache hasilnya.
+const rrdModeCache = new Map<string, 'range' | 'timeframe'>();
+
+function timeframeFor(startEpoch: number, endEpoch: number): string {
+  const d = Math.max(0, endEpoch - startEpoch);
+  if (d <= 3600) return 'hour';
+  if (d <= 2 * 86400) return 'day';
+  if (d <= 8 * 86400) return 'week';
+  if (d <= 40 * 86400) return 'month';
+  return 'year';
+}
+
+export async function getRrdData(
+  clusterId: string,
+  client: import('./pve').PveClient,
+  path: string,
+  startEpoch: number,
+  endEpoch: number
+): Promise<Array<Record<string, unknown>> | null> {
+  const known = rrdModeCache.get(clusterId);
+  if (known === 'timeframe') {
+    return client
+      .get<Array<Record<string, unknown>>>(path, { timeframe: timeframeFor(startEpoch, endEpoch), cf: 'AVERAGE' })
+      .catch(() => null);
+  }
+  try {
+    const data = await client.get<Array<Record<string, unknown>>>(path, { start: startEpoch, end: endEpoch, cf: 'AVERAGE' });
+    if (!known) rrdModeCache.set(clusterId, 'range');
+    return data;
+  } catch (e) {
+    const msg = (e as Error)?.message ?? '';
+    if (/schema|not defined|not optional/i.test(msg)) {
+      rrdModeCache.set(clusterId, 'timeframe');
+      return client
+        .get<Array<Record<string, unknown>>>(path, { timeframe: timeframeFor(startEpoch, endEpoch), cf: 'AVERAGE' })
+        .catch(() => null);
+    }
+    return null;
+  }
+}
 
 function makeRow(
   cfg: SlaConfig,
   clusterId: string,
-  base: Omit<SlaRow, 'target' | 'actualPct' | 'downtimeMin' | 'windowHours' | 'status'>,
+  base: Omit<
+    SlaRow,
+    | 'target'
+    | 'actualPct'
+    | 'downtimeMin'
+    | 'windowHours'
+    | 'status'
+    | 'coveragePct'
+    | 'budgetRemainingMin'
+    | 'atRisk'
+    | 'episodes'
+    | 'maintenanceMin'
+  >,
   samples: SlaSample[] | null,
   monthStart: number,
   monthEnd: number,
   nowSec: number,
-  activeNow: boolean
+  activeNow: boolean,
+  mWindows: MaintenanceWindow[]
 ): SlaRow {
   const target = targetFor(cfg, clusterId, base.key);
+  const excludes = resolveIntervals(
+    mWindows,
+    { kind: base.kind, node: base.node, vmid: base.vmid, type: base.type },
+    monthStart,
+    monthEnd
+  );
+  const maintMin = Math.round((excludes.reduce((a, iv) => a + (iv.end - iv.start), 0) / 60) * 10) / 10;
+  const maintenanceMin = maintMin > 0 ? maintMin : null;
   const avail = samples
-    ? computeAvailability(samples, monthStart, monthEnd, nowSec, activeNow)
+    ? computeAvailability(samples, monthStart, monthEnd, nowSec, activeNow, excludes)
     : null;
   if (!avail) {
     return {
@@ -296,8 +429,26 @@ function makeRow(
       actualPct: null,
       downtimeMin: null,
       windowHours: null,
+      coveragePct: null,
+      budgetRemainingMin: null,
+      atRisk: false,
+      episodes: [],
+      maintenanceMin,
       status: 'no-data'
     };
+  }
+  // Untuk periode berjalan (selesai di masa depan), hitung anggaran downtime
+  // target pada full-periode (dikurangi jendela maintenance) dan sisa yang
+  // masih boleh dipakai.
+  const open = monthEnd > nowSec;
+  let budgetRemainingMin: number | null = null;
+  let atRisk = false;
+  if (open) {
+    const fullMin = (monthEnd - monthStart) / 60 - maintMin;
+    const allowedMin = fullMin * (1 - target / 100);
+    const usedMin = avail.downtimeSec / 60;
+    budgetRemainingMin = Math.round((allowedMin - usedMin) * 10) / 10;
+    atRisk = usedMin > allowedMin;
   }
   return {
     ...base,
@@ -305,6 +456,11 @@ function makeRow(
     actualPct: avail.actualPct,
     downtimeMin: Math.round((avail.downtimeSec / 60) * 10) / 10,
     windowHours: Math.round((avail.windowSec / 3600) * 10) / 10,
+    coveragePct: avail.coveragePct,
+    budgetRemainingMin,
+    atRisk,
+    episodes: avail.episodes,
+    maintenanceMin,
     status: avail.actualPct >= target ? 'ok' : 'breach'
   };
 }
@@ -314,9 +470,20 @@ export async function slaForRange(
   startEpoch: number,
   endEpoch: number
 ): Promise<ClusterSla> {
-  const cacheKey = `${cluster.id}:${startEpoch}-${endEpoch}`;
-  const hit = cache.get(cacheKey);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const closed = endEpoch <= nowSec; // periode sudah lewat → hasil tidak berubah lagi
+  const cacheKey = `sla:${cluster.id}:${startEpoch}-${endEpoch}`;
+
+  // L1: memori (semua periode). L2: disk (hanya periode tertutup).
+  const l1 = cache.get(cacheKey);
+  if (l1 && nowSec * 1000 - l1.at < (closed ? CLOSED_TTL_MS : CACHE_TTL_MS)) return l1.data;
+  if (closed) {
+    const fromDisk = cacheGet<ClusterSla>(cacheKey);
+    if (fromDisk) {
+      cache.set(cacheKey, { at: nowSec * 1000, data: fromDisk });
+      return fromDisk;
+    }
+  }
 
   const client = getPveClient(cluster.id);
   if (!client) throw new PveError('Cluster tidak ditemukan.', 404);
@@ -324,14 +491,12 @@ export async function slaForRange(
   const cfg = readConfigSync();
   const monthStart = startEpoch;
   const monthEnd = endEpoch;
-  const nowSec = Math.floor(Date.now() / 1000);
 
   // fetchResources sudah mengakomodasi PVE ≤4.x (mis. pve3 / Proxmox 4.4) lewat
   // fallback /status, sehingga status node/guest tetap akurat untuk SLA.
   const { nodes: nodesRaw, guests: guestsRawAll } = await fetchResources(cluster.id);
   const guestsRaw = guestsRawAll.filter((g) => !g.template);
-
-  const query = { start: startEpoch, end: endEpoch, cf: 'AVERAGE' } as const;
+  const mWindows = listMaintenanceSync(cluster.id);
 
   const toSamples = (
     arr: Array<Record<string, unknown>> | null | undefined
@@ -348,28 +513,24 @@ export async function slaForRange(
     return out.length ? out : null;
   };
 
-  const nodeSeries = await Promise.all(
-    nodesRaw.map((n) =>
-      client
-        .get<Array<Record<string, unknown>>>(
-          `/nodes/${encodeURIComponent(String(n.node))}/rrddata`,
-          query
-        )
-        .then(toSamples)
-        .catch(() => null)
-    )
+  const nodeSeries = await mapLimit(nodesRaw, RRD_CONCURRENCY, (n) =>
+    getRrdData(
+      cluster.id,
+      client,
+      `/nodes/${encodeURIComponent(String(n.node))}/rrddata`,
+      startEpoch,
+      endEpoch
+    ).then(toSamples)
   );
 
-  const guestSeries = await Promise.all(
-    guestsRaw.map((g) =>
-      client
-        .get<Array<Record<string, unknown>>>(
-          `/nodes/${encodeURIComponent(String(g.node))}/${String(g.type)}/${Number(g.vmid)}/rrddata`,
-          query
-        )
-        .then(toSamples)
-        .catch(() => null)
-    )
+  const guestSeries = await mapLimit(guestsRaw, RRD_CONCURRENCY, (g) =>
+    getRrdData(
+      cluster.id,
+      client,
+      `/nodes/${encodeURIComponent(String(g.node))}/${String(g.type)}/${Number(g.vmid)}/rrddata`,
+      startEpoch,
+      endEpoch
+    ).then(toSamples)
   );
 
   const nodeRows: SlaRow[] = nodesRaw.map((n, i) => {
@@ -389,7 +550,8 @@ export async function slaForRange(
       monthStart,
       monthEnd,
       nowSec,
-      statusNow === 'online'
+      statusNow === 'online',
+      mWindows
     );
   });
 
@@ -414,7 +576,8 @@ export async function slaForRange(
       monthStart,
       monthEnd,
       nowSec,
-      statusNow === 'running'
+      statusNow === 'running',
+      mWindows
     );
   });
 
@@ -441,7 +604,8 @@ export async function slaForRange(
     guests: guestRows
   };
 
-  cache.set(cacheKey, { at: Date.now(), data });
+  cache.set(cacheKey, { at: nowSec * 1000, data });
+  if (closed) cacheSet(cacheKey, data, CLOSED_TTL_MS);
   return data;
 }
 
@@ -457,4 +621,5 @@ export async function slaForCluster(
 
 export function clearSlaCache(): void {
   cache.clear();
+  cacheClear();
 }

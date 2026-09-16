@@ -5,15 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.2] - 2026-09-16
+
+### Added
+- **Episode downtime ("kapan")** pada halaman SLA: daftar jendela downtime (mulai→selesai WIB + durasi, penanda "berlangsung") per entitas, plus tautan langsung ke grafik RRD pada rentang tersebut.
+- **Jendela Pemeliharaan (maintenance)**: tentukan periode *planned-downtime* per cluster/node/guest; waktu di dalamnya dikecualikan dari perhitungan SLA (bukan dihitung up maupun down) dan tidak memicu alert. Panel CRUD di Settings, API `/api/maintenance`.
+- **Alert pelanggaran SLA via WhatsApp/Telegram**: deteksi transisi menjadi breach (sekali per entitas per periode, state anti-spam tahan-restart), dijalankan otomatis tiap 30 menit; toggle + tombol "Cek sekarang" di Settings, API `/api/settings/sla-alert`.
+- **Tren historis SLA**: snapshot agregat per bulan disimpan ke `data/sla-history.json` dan digambar sebagai kurva ketersediaan + delta MoM (komponen "Tren SLA" di halaman SLA, API `/api/sla-history`).
+- **Ringkasan SLA lintas-cluster** (`/dashboard/sla/fleet`): rata-rata ketersediaan tertimbang, tabel per-cluster (entri terendah & status tak terjangkau), dan daftar 20 pelanggaran teratas se-fleet.
+- rrddata fan-out kini dibatasi konkurensinya (melindungi PVE lama) dan hasil SLA periode tertutup disimpan di cache disk (`data/cache/`) sehingga tahan-restart; periode berjalan tetap di memori agar angka live selalu segar.
 
 ### Fixed
-- Sinkronisasi kode dengan klaim CHANGELOG 1.2.0/1.2.1: upload ISO/VMware kini
-  `multipart/form-data` native via `https.request` (tanpa binary `curl`),
-  rate limiting per-IP+per-cluster pada `/api/pve/[id]/[...path]` benar-benar
-  diterapkan (60/menit mutasi, 120/menit GET; header `X-RateLimit-*`,
-  `Retry-After`; nonaktif via `RATE_LIMIT_ENABLED=false`), dan mojibake em-dash
-  (`â€”`) di `src/lib/pve.ts` dibersihkan menjadi `—`.
+- **Grafik/Laporan/SLA kembali berisi data pada PVE ≤4.x**: `rrddata` dengan `start`/`end` ditolak (HTTP 400) → kini *fallback* ke `timeframe` terdekat, kapabilitas di-*cache* per cluster.
+- Rentang tanggal kustom di halaman Graphs memakai fallback yang sama, dengan catatan khusus untuk PVE lama.
+- Sinkronisasi kode dengan klaim CHANGELOG 1.2.0/1.2.1: upload ISO/VMware `multipart/form-data` native via `https.request` (tanpa binary `curl`), rate limiting per-IP + per-cluster pada `/api/pve/[id]/[...path]` diterapkan (60/menit mutasi, 120/menit GET; header `X-RateLimit-*`, `Retry-After`; nonaktif via `RATE_LIMIT_ENABLED=false`), dan mojibake em-dash (`â€”`) di `src/lib/pve.ts` dibersihkan menjadi `—`.
+- Cache SLA diinvalidasi saat target diubah sehingga status ok/breach langsung reflektif.
 
 ## [1.4.1] - 2026-09-15
 

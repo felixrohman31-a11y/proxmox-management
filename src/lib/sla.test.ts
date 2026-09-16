@@ -79,6 +79,46 @@ describe('computeAvailability', () => {
     expect(r.windowSec).toBeLessThanOrEqual(7200 + 2 * DT);
   });
 
+  it('satu gap → satu episode dengan rentang waktu', () => {
+    const end = monthStart + 3600;
+    const rows: SlaSample[] = [];
+    for (let t = monthStart; t < end; t += DT) {
+      rows.push({ t, active: !(t >= monthStart + 900 && t < monthStart + 1800) });
+    }
+    const r = computeAvailability(rows, monthStart, monthEnd, end, true)!;
+    expect(r.episodes).toHaveLength(1);
+    expect(r.episodes[0].start).toBe(monthStart + 900);
+    expect(r.episodes[0].end).toBe(monthStart + 1800);
+  });
+
+  it('dua gap terpisah → dua episode berurut', () => {
+    const end = monthStart + 3600;
+    const downA = (t: number) => t >= monthStart + 300 && t < monthStart + 600;
+    const downB = (t: number) => t >= monthStart + 1500 && t < monthStart + 1800;
+    const rows: SlaSample[] = [];
+    for (let t = monthStart; t < end; t += DT) rows.push({ t, active: !(downA(t) || downB(t)) });
+    const r = computeAvailability(rows, monthStart, monthEnd, end, true)!;
+    expect(r.episodes).toHaveLength(2);
+    expect(r.episodes[0].start).toBe(monthStart + 300);
+    expect(r.episodes[1].start).toBe(monthStart + 1500);
+  });
+
+  it('downtime di dalam jendela maintenance dikecualikan dari SLA', () => {
+    const end = monthStart + 3600;
+    const rows: SlaSample[] = [];
+    for (let t = monthStart; t < end; t += DT) {
+      rows.push({ t, active: !(t >= monthStart + 900 && t < monthStart + 1800) });
+    }
+    const noMaint = computeAvailability(rows, monthStart, monthEnd, end, true)!;
+    const excludes = [{ start: monthStart + 900, end: monthStart + 1800 }];
+    const withMaint = computeAvailability(rows, monthStart, monthEnd, end, true, excludes)!;
+    expect(noMaint.downtimeSec).toBeGreaterThan(0);
+    expect(withMaint.actualPct).toBe(100);
+    expect(withMaint.downtimeSec).toBe(0);
+    expect(withMaint.episodes).toHaveLength(0);
+    expect(withMaint.maintenanceSec).toBe(900); // 3 slot × 300 s
+  });
+
   it('bulan di masa depan → null', () => {
     const rows = series(monthStart, monthStart + 86400);
     expect(computeAvailability(rows, monthEnd, monthEnd + 86400, monthEnd, true)).toBeNull();

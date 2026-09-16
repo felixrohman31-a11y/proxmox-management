@@ -35,6 +35,7 @@ export type WaProvider = 'fonnte' | 'telegram';
 interface SettingsFile {
   ftp?: StoredFtp;
   wa?: StoredWa;
+  slaAlert?: { enabled: boolean };
 }
 
 export interface WaConfigView {
@@ -187,11 +188,26 @@ export async function saveWaConfig(input: WaSaveInput): Promise<void> {
   await writeSettings(all);
 }
 
+export interface SlaAlertConfig {
+  enabled: boolean;
+}
+
+export async function getSlaAlertConfig(): Promise<SlaAlertConfig> {
+  const s = await readSettings();
+  return { enabled: Boolean(s.slaAlert?.enabled) };
+}
+
+export async function saveSlaAlertConfig(input: SlaAlertConfig): Promise<SlaAlertConfig> {
+  const all = await readSettings();
+  all.slaAlert = { enabled: Boolean(input.enabled) };
+  await writeSettings(all);
+  return { enabled: all.slaAlert.enabled };
+}
+
 export async function sendNotification(text: string): Promise<{ ok: boolean; message: string }> {
   const s = await readSettings();
   const w = s.wa;
   if (!w) return { ok: false, message: 'Notifikasi belum dikonfigurasi.' };
-
   try {
     if (w.provider === 'telegram') {
       const token = w.encBotToken ? decryptString(w.encBotToken) : '';

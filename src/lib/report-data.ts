@@ -2,7 +2,8 @@ import type { PublicCluster } from '@/types';
 import { getPveClient } from './pve';
 import { readAudit } from './audit';
 import { fetchResources } from './resources';
-import { slaForRange, type ClusterSla } from './sla';
+import { slaForRange, getRrdData, type ClusterSla } from './sla';
+import { mapLimit } from './concurrency';
 
 export interface OverallSla {
   nodePct: number;
@@ -167,25 +168,23 @@ export async function gatherMonthlyData(
   const auditTop = [...perAction.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
 
   const nodeSeries: Record<string, ChartRow[]> = {};
-  await Promise.all(
-    nodeNames.map(async (n) => {
-      const raw = await client
-        .get<Array<Record<string, unknown>>>(`/nodes/${encodeURIComponent(n)}/rrddata`, {
-          start: startEpoch,
-          end: endEpoch,
-          cf: 'AVERAGE'
-        })
-        .catch(() => []);
-      nodeSeries[n] = (raw ?? []).map((e) => ({
-        t: num(e.time) * 1000,
-        cpu: typeof e.cpu === 'number' && isFinite(e.cpu) ? e.cpu * 100 : null,
-        memG: typeof e.memused === 'number' && isFinite(e.memused) ? e.memused / GIB : null,
-        memTotG: typeof e.memtotal === 'number' && isFinite(e.memtotal) ? e.memtotal / GIB : null,
-        netin: typeof e.netin === 'number' && isFinite(e.netin) ? e.netin : null,
-        netout: typeof e.netout === 'number' && isFinite(e.netout) ? e.netout : null
-      }));
-    })
-  );
+  await mapLimit(nodeNames, 5, async (n) => {
+    const raw = await getRrdData(
+      cluster.id,
+      client,
+      `/nodes/${encodeURIComponent(n)}/rrddata`,
+      startEpoch,
+      endEpoch
+    );
+    nodeSeries[n] = (raw ?? []).map((e) => ({
+      t: num(e.time) * 1000,
+      cpu: typeof e.cpu === 'number' && isFinite(e.cpu) ? e.cpu * 100 : null,
+      memG: typeof e.memused === 'number' && isFinite(e.memused) ? e.memused / GIB : null,
+      memTotG: typeof e.memtotal === 'number' && isFinite(e.memtotal) ? e.memtotal / GIB : null,
+      netin: typeof e.netin === 'number' && isFinite(e.netin) ? e.netin : null,
+      netout: typeof e.netout === 'number' && isFinite(e.netout) ? e.netout : null
+    }));
+  });
 
   const d0 = new Date(startEpoch * 1000);
   let sla: ClusterSla | null = null;

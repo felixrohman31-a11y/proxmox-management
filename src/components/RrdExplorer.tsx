@@ -22,7 +22,14 @@ interface Props {
   clusterId: string;
   nodes: { node: string; status: string }[];
   guests: GuestLite[];
-  init: { targetType: TargetType; node?: string; guestKey?: string; tf: Timeframe };
+  init: {
+    targetType: TargetType;
+    node?: string;
+    guestKey?: string;
+    tf: Timeframe;
+    customStart?: string;
+    customEnd?: string;
+  };
 }
 
 const TFS: Timeframe[] = ['hour', 'day', 'week', 'month', 'year'];
@@ -56,6 +63,17 @@ function customXFmt(start: string, end: string): (ms: number) => string {
   return (ms: number) => new Date(ms).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// PVE lama hanya menerima timeframe tetap; pilih yang paling mendekati rentang.
+function tfFromRange(start: string, end: string): Timeframe {
+  const s = new Date(`${start}T00:00:00`).getTime();
+  const e = new Date(`${end}T23:59:59`).getTime();
+  const days = (e - s) / 86400000;
+  if (!isFinite(days) || days <= 1) return 'day';
+  if (days <= 8) return 'week';
+  if (days <= 45) return 'month';
+  return 'year';
+}
+
 export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
   const L = useL();
   const [targetType, setTargetType] = useState<TargetType>(init.targetType);
@@ -69,15 +87,17 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     return guests[0] ? guestKeyOf(guests[0]) : '';
   });
   const [tf, setTf] = useState<Timeframe>(init.tf);
-  const [customMode, setCustomMode] = useState(false);
+  const [customMode, setCustomMode] = useState(!!(init.customStart && init.customEnd));
   const [customStart, setCustomStart] = useState<string>(() => {
+    if (init.customStart) return init.customStart;
     const d = new Date();
     d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
   });
-  const [customEnd, setCustomEnd] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [customEnd, setCustomEnd] = useState<string>(() => init.customEnd ?? new Date().toISOString().slice(0, 10));
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [rows, setRows] = useState<Array<{ [k: string]: number | null }> | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
 
@@ -96,27 +116,48 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(nodeSel)}/rrddata`;
     } else {
       if (!guest) return;
-      if (guest.status && guest.status !== 'running') {
+      // Untuk rentang kustom, guest non-running boleh dicoba (data historis bisa ada).
+      if (!customMode && guest.status && guest.status !== 'running') {
         setRows(null);
         setErr(null);
         return;
       }
       url = `/api/pve/${clusterId}/nodes/${encodeURIComponent(guest.node)}/${guest.type}/${guest.vmid}/rrddata`;
     }
-    let qs: string;
-    if (customMode) {
-      if (!customStart || !customEnd) return;
-      const s = Math.floor(new Date(`${customStart}T00:00:00`).getTime() / 1000);
-      const e = Math.floor(new Date(`${customEnd}T23:59:59`).getTime() / 1000);
-      if (!isFinite(s) || !isFinite(e) || s >= e) return;
-      qs = `start=${s}&end=${e}&cf=AVERAGE`;
-    } else {
-      qs = `timeframe=${tf}&cf=AVERAGE`;
-    }
     setLoading(true);
-    try {
-      const r = await fetch(`${url}?${qs}`);
+    setNote(null);
+    const doFetch = async (q: string) => {
+      const r = await fetch(`${url}?${q}`);
       const j = await r.json().catch(() => null);
+      return { r, j };
+    };
+    try {
+      let qs: string;
+      if (customMode) {
+        if (!customStart || !customEnd) {
+          setLoading(false);
+          return;
+        }
+        const s = Math.floor(new Date(`${customStart}T00:00:00`).getTime() / 1000);
+        const e = Math.floor(new Date(`${customEnd}T23:59:59`).getTime() / 1000);
+        if (!isFinite(s) || !isFinite(e) || s >= e) {
+          setLoading(false);
+          return;
+        }
+        qs = `start=${s}&end=${e}&cf=AVERAGE`;
+      } else {
+        qs = `timeframe=${tf}&cf=AVERAGE`;
+      }
+      let { r, j } = await doFetch(qs);
+      // PVE lama (mis. 4.x) menolak start/end pada rrddata → pakai timeframe terdekat.
+      if (customMode && !r.ok) {
+        const msg = String(j?.error ?? '');
+        if (/schema|not defined|not optional|property is missing/i.test(msg) || r.status === 400) {
+          qs = `timeframe=${tfFromRange(customStart, customEnd)}&cf=AVERAGE`;
+          ({ r, j } = await doFetch(qs));
+          if (r.ok) setNote(L.graphs.oldPveNote);
+        }
+      }
       if (!r.ok) {
         setErr(j?.error ?? `HTTP ${r.status}`);
         setRows(null);
@@ -134,7 +175,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [clusterId, targetType, nodeSel, guest, tf, customMode, customStart, customEnd, nodes]);
+  }, [clusterId, targetType, nodeSel, guest, tf, customMode, customStart, customEnd, nodes, L]);
 
   useEffect(() => {
     load();
@@ -268,6 +309,10 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
         </button>
       </div>
 
+      {note && !err && (
+        <p className="rounded-lg border border-amber-900/50 bg-amber-950/20 px-3 py-2 text-xs text-amber-300/90">{note}</p>
+      )}
+
       {err && (
         <p className="rounded-lg border border-red-900/60 bg-red-950/40 px-3 py-2 text-sm text-red-300">{err}</p>
       )}
@@ -277,7 +322,7 @@ export default function RrdExplorer({ clusterId, nodes, guests, init }: Props) {
         {updated ? ` · ${fmt(L.graphs.updatedAt, { time: updated.toLocaleTimeString('id-ID', { hour12: false }) })}` : ''}
       </p>
 
-      {targetType === 'guest' && guest && guest.status && guest.status !== 'running' ? (
+      {targetType === 'guest' && !customMode && guest && guest.status && guest.status !== 'running' ? (
         <div className="card flex flex-col items-center justify-center rounded-xl border-dashed border-amber-700/50 bg-amber-950/20 px-6 py-14 text-center">
           <span className="grid h-14 w-14 place-items-center rounded-full bg-amber-500/10 text-amber-400">
             <PowerIcon className="h-7 w-7" />

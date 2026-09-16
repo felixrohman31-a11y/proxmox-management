@@ -22,7 +22,15 @@ function pickTf(v?: string | string[]): Tf {
 export default async function GraphsPage({
   searchParams
 }: {
-  searchParams?: { c?: string | string[]; t?: string | string[]; n?: string | string[]; g?: string | string[]; tf?: string | string[] };
+  searchParams?: {
+    c?: string | string[];
+    t?: string | string[];
+    n?: string | string[];
+    g?: string | string[];
+    tf?: string | string[];
+    start?: string | string[];
+    end?: string | string[];
+  };
 }) {
   const sp = searchParams ?? {};
   const L = serverT();
@@ -46,6 +54,11 @@ export default async function GraphsPage({
   const nodeParam = Array.isArray(sp.n) ? sp.n[0] : sp.n;
   const guestParam = Array.isArray(sp.g) ? sp.g[0] : sp.g;
   const tf = pickTf(sp.tf);
+  const startParam = Array.isArray(sp.start) ? sp.start[0] : sp.start;
+  const endParam = Array.isArray(sp.end) ? sp.end[0] : sp.end;
+  const isDate = (v?: string): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const customStart = isDate(startParam) ? startParam : undefined;
+  const customEnd = isDate(endParam) ? endParam : undefined;
 
   return (
     <>
@@ -74,7 +87,7 @@ export default async function GraphsPage({
           clusterId={cluster.id}
           nodes={nodes}
           guests={guests}
-          init={{ targetType, node: nodeParam, guestKey: guestParam, tf }}
+          init={{ targetType, node: nodeParam, guestKey: guestParam, tf, customStart, customEnd }}
         />
       )}
     </>
