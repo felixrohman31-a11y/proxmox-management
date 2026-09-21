@@ -10,6 +10,8 @@
 
 A **multi-cluster Proxmox VE management panel** built with Next.js 14 + Tailwind CSS.
 
+![Proxcenter dashboard](sample-dashboard.png)
+
 ### Features
 
 #### Cluster Management
@@ -269,6 +271,8 @@ The flagship of 2.x: an in-panel AI chat that helps diagnose Proxmox issues and,
 ## Bahasa Indonesia
 
 Panel manajemen **multi-cluster Proxmox VE** via API — dibangun dengan Next.js 14 + Tailwind CSS.
+
+![Dasbor Proxcenter](sample-dashboard.png)
 
 ### Fitur
 
